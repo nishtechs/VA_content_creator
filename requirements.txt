@@ -1,0 +1,7 @@
+crewai
+crewai-tools
+langchain-nvidia-ai-endpoints
+python-dotenv
+requests
+pydantic
+
