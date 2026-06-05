@@ -4,4 +4,9 @@ langchain-nvidia-ai-endpoints
 python-dotenv
 requests
 pydantic
-
+pydub
+audioop-lts
+typer
+jinja2
+aiohttp
+streamlit

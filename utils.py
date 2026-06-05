@@ -1,23 +1,75 @@
+"""
+Utility functions — JSON extraction, progress tracking, master index generation.
+"""
+
 import os
 import json
 import re
-from config import OUTPUT_DIR, SECTIONS_JSON, PROGRESS_JSON
+import logging
+from typing import Any
+
+from project import (
+    get_project_dir,
+    get_sections_json,
+    get_progress_json,
+    get_index_path,
+    audio_path,
+    html_path,
+)
+
+logger = logging.getLogger("va_creator.utils")
 
 
-def extract_json_object(text: str):
+# Devanagari Unicode range: \u0900–\u097F
+_DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
+
+
+def has_devanagari(text: str) -> bool:
+    """Return True if the text contains any Hindi (Devanagari) characters."""
+    return bool(_DEVANAGARI_RE.search(text or ""))
+
+
+def devanagari_ratio(text: str) -> float:
+    """Fraction of alphabetic characters that are Devanagari (0.0–1.0)."""
+    if not text:
+        return 0.0
+    letters = [c for c in text if c.isalpha()]
+    if not letters:
+        return 0.0
+    deva = sum(1 for c in letters if "\u0900" <= c <= "\u097F")
+    return deva / len(letters)
+
+
+def is_clean_hindi_audio(text: str) -> bool:
+    """Heuristic: audio_text is acceptable if it has no code/markdown markers
+    and is predominantly Hindi (Devanagari)."""
+    if not text or not text.strip():
+        return False
+    bad_markers = ["```", "###", "[Screen:", "import ", "def ", "(0:", "---", "pip install", "**["]
+    if any(marker in text for marker in bad_markers):
+        return False
+    # Require a meaningful share of Devanagari so English/Hinglish gets rejected
+    return devanagari_ratio(text) >= 0.5
+
+
+def extract_json_object(text: str) -> dict[str, Any]:
+    """Extract a JSON object from LLM output text."""
     text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group(0))
+            return json.loads(match.group(0), strict=False)
         except json.JSONDecodeError:
+            # Try fixing common JSON issues
             cleaned = re.sub(r",\s*}", "}", match.group(0))
             cleaned = re.sub(r",\s*]", "]", cleaned)
-            return json.loads(cleaned)
+            cleaned = re.sub(r'[\x00-\x1f]', ' ', cleaned)  # Remove control chars
+            return json.loads(cleaned, strict=False)
     raise ValueError(f"No JSON object found in: {text[:200]}")
 
 
-def extract_html(text: str):
+def extract_html(text: str) -> str:
+    """Extract HTML content from LLM output text."""
     text = re.sub(r"^```(?:html)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
     start = text.find("<!DOCTYPE")
     if start == -1:
@@ -28,54 +80,76 @@ def extract_html(text: str):
     return text
 
 
-def save_sections_json(sections: list):
-    with open(SECTIONS_JSON, "w", encoding="utf-8") as f:
+def save_sections_json(sections: list[dict[str, Any]]) -> None:
+    """Persist sections to JSON file."""
+    with open(get_sections_json(), "w", encoding="utf-8") as f:
         json.dump(sections, f, indent=2, ensure_ascii=False)
+    logger.info(f"Saved {len(sections)} sections to {get_sections_json()}")
 
 
-def load_sections_json():
-    if os.path.exists(SECTIONS_JSON):
-        with open(SECTIONS_JSON, "r", encoding="utf-8") as f:
+def load_sections_json() -> list[dict[str, Any]] | None:
+    """Load cached sections from JSON file."""
+    path = get_sections_json()
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     return None
 
 
-def load_progress():
-    if os.path.exists(PROGRESS_JSON):
-        with open(PROGRESS_JSON, "r", encoding="utf-8") as f:
+def load_progress() -> dict[str, Any]:
+    """Load progress tracking data."""
+    path = get_progress_json()
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"completed": []}
+    return {"completed": [], "hashes": {}}
 
 
-def save_progress(progress):
-    with open(PROGRESS_JSON, "w", encoding="utf-8") as f:
+def save_progress(progress: dict[str, Any]) -> None:
+    """Save progress tracking data."""
+    with open(get_progress_json(), "w", encoding="utf-8") as f:
         json.dump(progress, f, indent=2)
 
 
-def mark_completed(section_id: str):
+def mark_completed(section_id: str, chunk_hash: str = "") -> None:
+    """Mark a section as completed in progress tracker."""
     progress = load_progress()
     if section_id not in progress["completed"]:
         progress["completed"].append(section_id)
-        save_progress(progress)
+    if chunk_hash:
+        if "hashes" not in progress:
+            progress["hashes"] = {}
+        progress["hashes"][section_id] = chunk_hash
+    save_progress(progress)
 
 
 def is_completed(section_id: str) -> bool:
-    html_path = os.path.join(OUTPUT_DIR, f"{section_id}.html")
-    audio_path = os.path.join(OUTPUT_DIR, f"{section_id}.mp3")
+    """Check if a section's output files already exist and are valid."""
+    h_path = html_path(section_id)
+    a_path = audio_path(section_id)
     return (
-        os.path.exists(html_path)
-        and os.path.exists(audio_path)
-        and os.path.getsize(audio_path) > 1000
+        os.path.exists(h_path)
+        and os.path.exists(a_path)
+        and os.path.getsize(a_path) > 1000
     )
 
 
-def generate_master_index(sections: list):
-    """Creates an index.html launcher page."""
+def has_chunk_changed(section_id: str, chunk_hash: str) -> bool:
+    """Check if a chunk's content has changed since last run."""
+    progress = load_progress()
+    stored_hash = progress.get("hashes", {}).get(section_id, "")
+    return stored_hash != chunk_hash
+
+
+def generate_master_index(sections: list[dict[str, Any]], project_name: str = "") -> str:
+    """Creates an index.html launcher page with accessibility and keyboard nav."""
+    display_name = project_name or "Tutorial Slides"
     cards_html = ""
     for i, sec in enumerate(sections):
         cards_html += f"""
-        <a href="{sec['section_id']}.html" class="slide-card">
-          <div class="slide-num">{i+1:02d}</div>
+        <a href="{sec['section_id']}.html" class="slide-card" tabindex="0"
+           aria-label="Slide {i+1}: {sec['title']}">
+          <div class="slide-num" aria-hidden="true">{i+1:02d}</div>
           <div class="slide-title">{sec['title']}</div>
           <div class="slide-cat">{sec.get('category', 'concept').upper()}</div>
         </a>
@@ -85,7 +159,9 @@ def generate_master_index(sections: list):
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Tutorial Slides Index</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{display_name} — Slides</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 * {{ margin:0; padding:0; box-sizing:border-box; }}
@@ -93,7 +169,7 @@ body {{ font-family:'Poppins',sans-serif; background:#0a0e27; color:#fff; paddin
 .bg {{ position:fixed; inset:0; background:
   radial-gradient(circle at 15% 50%, rgba(0,212,255,0.08) 0%, transparent 45%),
   radial-gradient(circle at 85% 30%, rgba(167,139,250,0.07) 0%, transparent 50%);
-  z-index:0; }}
+  z-index:0; pointer-events:none; }}
 .container {{ position:relative; z-index:1; max-width:1200px; margin:0 auto; }}
 h1 {{ font-size:2.5rem; margin-bottom:8px; background:linear-gradient(135deg,#00d4ff,#a78bfa);
   -webkit-background-clip:text; -webkit-text-fill-color:transparent; }}
@@ -101,29 +177,59 @@ h1 {{ font-size:2.5rem; margin-bottom:8px; background:linear-gradient(135deg,#00
 .grid {{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px; }}
 .slide-card {{ background:rgba(0,212,255,0.05); border:1.5px solid rgba(0,212,255,0.2);
   border-radius:14px; padding:20px; text-decoration:none; color:#fff; transition:all 0.3s;
-  display:flex; flex-direction:column; gap:8px; }}
-.slide-card:hover {{ transform:translateY(-6px); border-color:#00d4ff;
+  display:flex; flex-direction:column; gap:8px; outline:none; }}
+.slide-card:hover, .slide-card:focus {{ transform:translateY(-6px); border-color:#00d4ff;
   box-shadow:0 12px 40px rgba(0,212,255,0.2); }}
+.slide-card:focus {{ outline:2px solid #00d4ff; outline-offset:2px; }}
 .slide-num {{ font-size:0.75rem; color:#00d4ff; font-weight:700; letter-spacing:2px; }}
 .slide-title {{ font-size:1rem; font-weight:600; }}
 .slide-cat {{ font-size:0.65rem; color:#a78bfa; letter-spacing:1.5px; font-weight:700; }}
 .play-all {{ display:inline-block; background:linear-gradient(135deg,#00d4ff,#00ffff);
   color:#0a0e27; padding:12px 28px; border-radius:100px; text-decoration:none;
-  font-weight:700; margin-bottom:30px; }}
+  font-weight:700; margin-bottom:30px; transition:transform 0.2s; }}
+.play-all:hover {{ transform:scale(1.05); }}
+.play-all:focus {{ outline:2px solid #fff; outline-offset:4px; }}
+.stats {{ display:flex; gap:20px; margin-bottom:20px; flex-wrap:wrap; }}
+.stat {{ background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.3);
+  border-radius:10px; padding:10px 16px; font-size:0.85rem; }}
+.stat-val {{ color:#a78bfa; font-weight:700; }}
+@media (max-width:768px) {{
+  h1 {{ font-size:1.8rem; }}
+  .grid {{ grid-template-columns:1fr; }}
+}}
+/* Keyboard nav hint */
+.kbd-hint {{ color:#666; font-size:0.75rem; margin-top:20px; }}
 </style>
 </head>
 <body>
-<div class="bg"></div>
-<div class="container">
-  <h1>🎬 Tutorial Slides</h1>
-  <p class="sub">{len(sections)} slides ready • Click any slide to start, or play all from beginning</p>
-  <a href="{sections[0]['section_id']}.html" class="play-all">▶ Play From Start</a>
-  <div class="grid">{cards_html}</div>
+<div class="bg" aria-hidden="true"></div>
+<div class="container" role="main" aria-label="Tutorial slides index">
+  <h1>🎬 {display_name}</h1>
+  <p class="sub">{len(sections)} slides ready &bull; Click any slide to start, or play all from beginning</p>
+  <div class="stats">
+    <div class="stat"><span class="stat-val">{len(sections)}</span> Total Slides</div>
+    <div class="stat"><span class="stat-val">{len(set(s.get('category','') for s in sections))}</span> Categories</div>
+  </div>
+  <a href="{sections[0]['section_id']}.html" class="play-all" aria-label="Play all slides from the beginning">▶ Play From Start</a>
+  <div class="grid" role="list">{cards_html}</div>
+  <p class="kbd-hint">💡 Use Tab to navigate, Enter to select a slide</p>
 </div>
+<script>
+  // Keyboard navigation
+  document.querySelectorAll('.slide-card').forEach(card => {{
+    card.addEventListener('keydown', e => {{
+      if (e.key === 'Enter' || e.key === ' ') {{
+        e.preventDefault();
+        card.click();
+      }}
+    }});
+  }});
+</script>
 </body>
 </html>"""
 
-    index_path = os.path.join(OUTPUT_DIR, "index.html")
+    index_path = get_index_path()
     with open(index_path, "w", encoding="utf-8") as f:
         f.write(index_html)
+    logger.info(f"Master index generated: {index_path}")
     return index_path

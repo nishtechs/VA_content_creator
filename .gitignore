@@ -99,3 +99,4 @@ dmypy.json
 *.temp
 output/
 generated_html/
+old_output/
