@@ -93,9 +93,17 @@ def make_chunking_task(agent, chunk: dict, section_id: str) -> Task:
             f'NO code, NO timestamps, NO [Screen:] tags, NO markdown, NO English sentences. '
             f'Natural conversational Hindi speech, 40-120 words. '
             f'If this section has code, this Hindi narration must EXPLAIN the code>",\n'
-            f'  "visual_brief": "<ENGLISH bullet description of what to show on screen: key points, code snippets, icons, layout>",\n'
+            f'  "visual_brief": "<ENGLISH bullet description of what to show on screen. '
+            f'MUST cover the SAME key concepts/steps described in audio_text so the viewer sees '
+            f'on screen what the narrator is explaining. Include: key points, icons, layout suggestions, '
+            f'any URLs to display as plain text>",\n'
             f"{code_field_spec}"
             f'  "category": "<one of: intro, concept, code, setup, demo, summary>"\n\n'
+            f"QUALITY RULE — VISUAL & AUDIO ALIGNMENT (CRITICAL):\n"
+            f"- The 'visual_brief' and 'audio_text' MUST be about the SAME topic and cover the SAME core points.\n"
+            f"- If the audio narration explains three steps, the visual brief MUST list the same three steps.\n"
+            f"- If the audio talks about a specific tool/library/concept, the visual brief MUST reference it.\n"
+            f"- There should be NO mismatch between what the viewer sees and what the narrator says.\n\n"
             f"LANGUAGE RULES (STRICT):\n"
             f"- audio_text → HINDI in DEVANAGARI script ONLY (this becomes the spoken narration). "
             f"If the source narration is in English or romanized Hinglish, TRANSLATE it into proper Hindi (देवनागरी). "
@@ -110,9 +118,8 @@ def make_chunking_task(agent, chunk: dict, section_id: str) -> Task:
 
 
 def make_visual_task(agent, section_data: dict) -> Task:
-    """Create a task that asks the LLM for STRUCTURED SLIDE CONTENT (JSON), not HTML.
-    The HTML is rendered deterministically by slide_template.render_slide(), so slide
-    quality is identical regardless of which model is used.
+    """Create a task that asks the LLM for STRUCTURED SLIDE CONTENT (JSON) including
+    custom visual HTML and CSS to explain the slide's context with premium quality.
     """
     code = section_data.get("code", "")
     has_code = bool(code and str(code).strip())
@@ -120,32 +127,69 @@ def make_visual_task(agent, section_data: dict) -> Task:
     code_note = ""
     if has_code:
         code_note = (
-            "\n\nNOTE: This section has CODE (it will be shown automatically with a typing "
-            "animation by the renderer — you do NOT need to include the code yourself). "
-            "Provide 1-2 short cards that summarize what the code does, in English.\n"
+            "\n\nNOTE: This section contains CODE. The code typewriter component is generated "
+            "automatically by the rendering engine and placed side-by-side with your visual content. "
+            "Your visual HTML should focus on explaining what the code does, showing data flows, "
+            "inputs/outputs, or annotated step-by-step breakdowns — NOT repeating the raw code.\n"
         )
 
     return Task(
         description=(
-            f"Produce STRUCTURED CONTENT for one tutorial slide as a JSON object. "
-            f"Do NOT write HTML — only the content fields below.\n\n"
-            f"TITLE: {section_data['title']}\n"
-            f"CATEGORY: {section_data.get('category', 'concept')}\n"
+            f"Produce PREMIUM structured content for one tutorial slide as a JSON object.\n\n"
+            f"SLIDE TITLE: {section_data['title']}\n"
+            f"SLIDE CATEGORY: {section_data.get('category', 'concept')}\n"
             f"VISUAL BRIEF: {section_data['visual_brief']}\n"
+            f"AUDIO TEXT (narrator will say this — your visual MUST match): {section_data.get('audio_text', 'N/A')}\n"
             f"{code_note}\n"
-            f"Return a JSON object with EXACTLY these fields (ALL TEXT IN ENGLISH):\n"
-            f'  "headline": "<slide title, max 7 words>",\n'
-            f'  "badge": "<2-3 word uppercase tag, e.g. INTRODUCTION, SETUP, CONCEPT>",\n'
-            f'  "subtitle": "<one short sentence describing this slide>",\n'
-            f'  "cards": [ {{"title": "<short>", "text": "<1 sentence>"}} ],\n'
-            f'  "footer": "<very short footer line>"\n\n'
-            f"RULES:\n"
-            f"- ALL text must be in ENGLISH (translate any Hindi from the brief).\n"
-            f"- For 'intro' use 1-2 cards or none; for 'concept'/'setup'/'summary' use 3-4 cards; "
-            f"for 'code' use 1-2 cards summarizing the code.\n"
-            f"- Keep each card short and scannable.\n"
-            f"- Return ONLY the JSON object. No HTML, no markdown fences, no explanation."
+            f"═══════════════════════════════════════════\n"
+            f"YOUR GOAL: Create VISUALLY STUNNING HTML that explains the topic.\n"
+            f"═══════════════════════════════════════════\n\n"
+            f"AVAILABLE PRE-BUILT COMPONENTS (use these for consistent premium styling):\n\n"
+            f"1. GLASS BOX: <div class=\"glass-box\"><h3>Title</h3><p>Content</p></div>\n"
+            f"   - A frosted-glass panel with backdrop blur. Use for info sections.\n\n"
+            f"2. FLOW STEP: <div class=\"flow-step\"><div class=\"step-num\">1</div><div><strong>Step Title</strong><br><span style=\"color:#94a3b8\">Description</span></div></div>\n"
+            f"   - A numbered step with left accent border. Stack multiples for processes.\n\n"
+            f"3. COMMAND BOX: <div class=\"command-box\">pip install langchain</div>\n"
+            f"   - Terminal-styled command box with auto $ prefix. Use for CLI commands.\n\n"
+            f"4. HIGHLIGHT TEXT: <span class=\"highlight\">cyan text</span> or <span class=\"highlight-purple\">purple text</span>\n\n"
+            f"5. ICONS: FontAwesome 6 — <i class=\"fas fa-robot\"></i>, <i class=\"fas fa-database\"></i>, etc.\n\n"
+            f"═══════════════════════════════════════════\n"
+            f"CATEGORY-SPECIFIC LAYOUT RULES:\n"
+            f"═══════════════════════════════════════════\n\n"
+            f"• INTRO: Create an eye-catching overview with 2-3 glass-box panels in a grid showing "
+            f"  key features/benefits. Use large icons and short punchy text.\n\n"
+            f"• CONCEPT/THEORY: Build a visual flowchart using flow-step components showing the process. "
+            f"  OR create a comparison grid with glass-box panels. Use icons to represent each concept.\n\n"
+            f"• SETUP/INSTALLATION: Use command-box for terminal commands. Below, add a glass-box "
+            f"  with a list of packages/dependencies with <i class=\"fas fa-check\"></i> icons.\n\n"
+            f"• CODE WALKTHROUGH: Create annotated flow-step components explaining each part of the code. "
+            f"  Show data flow: Input → Processing → Output using glass-box panels.\n\n"
+            f"• DEMO: Create a mock chat interface with alternating user/bot messages. Use flex layout "
+            f"  with different background colors for each speaker.\n\n"
+            f"• SUMMARY: Create a recap grid with 3-4 glass-box panels, each with an icon and 2-3 "
+            f"  key takeaway points.\n\n"
+            f"═══════════════════════════════════════════\n"
+            f"STRICT RULES:\n"
+            f"═══════════════════════════════════════════\n"
+            f"- ALL text in ENGLISH only.\n"
+            f"- Minimum 3-5 distinct visual elements per slide (not just one big paragraph).\n"
+            f"- NO <html>, <body>, <head>, <script> tags. Only inner elements.\n"
+            f"- NO scrollable containers. No overflow:auto/scroll.\n"
+            f"- NO <a href> anchor tags. Show URLs as <span class=\"highlight\">url</span>.\n"
+            f"- Use CSS grid or flexbox for layout. Use gap for spacing.\n"
+            f"- Use the dark palette: backgrounds rgba(15,23,42,0.65), borders rgba(0,212,255,0.15).\n"
+            f"- Add border-radius:14px, padding:16px to custom containers.\n\n"
+            f"Return a JSON object with EXACTLY these fields (no markdown fences):\n"
+            f"{{\n"
+            f'  "headline": "<engaging title, max 7 words in English>",\n'
+            f'  "badge": "<2-3 words uppercase, e.g., CORE CONCEPT, RAG FLOW, LIVE DEMO>",\n'
+            f'  "subtitle": "<one sentence describing this slide in English>",\n'
+            f'  "visual_html": "<premium visual HTML using the components above>",\n'
+            f'  "custom_css": "<additional CSS if needed beyond pre-built classes>",\n'
+            f'  "footer": "<short footer text>"\n'
+            f"}}\n"
         ),
-        expected_output='A single JSON object with headline, badge, subtitle, cards[], footer.',
+        expected_output='A single JSON object with headline, badge, subtitle, visual_html, custom_css, and footer.',
         agent=agent,
     )
+

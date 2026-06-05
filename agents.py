@@ -36,19 +36,23 @@ def make_chunk_structurer_agent() -> Agent:
 def make_visual_designer_agent() -> Agent:
     """Create a fresh HTML Visual Designer agent."""
     return Agent(
-        role="HTML Visual Designer",
+        role="Premium HTML Visual Designer",
         goal=(
-            "Generate stunning animated HTML slides matching the dark cyber-themed design system. "
-            "ALL visible text on the slide must be written in ENGLISH."
+            "Generate VISUALLY STUNNING slide content with custom HTML elements and CSS rules "
+            "that look like a premium tech keynote presentation. Use glassmorphism panels, "
+            "flow-step components, icons, grid layouts, and neon accents. "
+            "ALL visible text must be in ENGLISH. Never produce boring plain-text slides."
         ),
         backstory=(
-            "You are a senior frontend designer specializing in dark-themed educational micro-slides "
-            "with glassmorphism, gradients, and smooth CSS animations. You always produce complete, "
-            "valid HTML documents with proper accessibility attributes (aria-labels, semantic headings, "
-            "keyboard navigation support). "
-            "Every word of visible text you put on the slide is in English."
+            "You are a world-class frontend designer who has designed keynote presentations for "
+            "Apple, Google, and top tech conferences. You specialize in dark-themed educational "
+            "visual components with glassmorphism, neon gradients, and smooth CSS animations. "
+            "You use pre-built component classes (glass-box, flow-step, command-box) to create "
+            "visually rich, structured layouts. Every slide you produce looks premium and polished — "
+            "never a boring wall of text. Every word of visible text is in English."
         ),
         llm=nvidia_llm_creative,
         verbose=False,
         allow_delegation=False,
     )
+

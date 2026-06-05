@@ -551,7 +551,8 @@ with btn_col3:
     if total_sections > 0:
         index_path = get_index_path()
         if os.path.exists(index_path):
-            st.link_button("🌐 Open Slides", f"file:///{os.path.abspath(index_path).replace(os.sep, '/')}", use_container_width=True)
+            if st.button("🌐 Open Slides", use_container_width=True):
+                os.startfile(os.path.abspath(index_path))
         else:
             st.button("🌐 Open Slides", disabled=True, use_container_width=True)
 
@@ -746,8 +747,8 @@ if st.session_state.sections:
                 st.markdown(f"**{video_icon} Video (slide)**")
                 v_path = html_path(sid)
                 if _video_exists(sid):
-                    rel = f"file:///{os.path.abspath(v_path).replace(os.sep, '/')}"
-                    st.markdown(f"[🔗 Open slide]({rel})")
+                    if st.button("🔗 Open slide", key=f"open_slide_{sid}", use_container_width=True):
+                        os.startfile(os.path.abspath(v_path))
                 else:
                     st.caption("No slide yet")
 

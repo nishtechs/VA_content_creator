@@ -1,6 +1,6 @@
 \# 📄 README.md
 
-
+Command to Run this :- "venv\Scripts\streamlit.exe run app.py --server.headless true"
 
 ````markdown
 
