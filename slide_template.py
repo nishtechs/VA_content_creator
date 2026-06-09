@@ -84,8 +84,7 @@ def render_slide(
     code_language = section.get("code_language") or content.get("code_language") or "text"
     has_code = bool(str(code).strip())
 
-    # Get custom visual HTML and CSS from LLM visual designer if present
-    visual_html = content.get("visual_html", "")
+    visual_html = content.get("visual_html") or content.get("slide_html") or ""
     custom_css = content.get("custom_css", "")
 
     # Clean markdown code blocks from custom html/css if present
@@ -143,12 +142,16 @@ def render_slide(
   (function() {
     var el = document.getElementById('codeTarget');
     if (!el) return;
+    var container = el.parentElement;
     var full = el.getAttribute('data-code') || '';
     var i = 0;
     function type() {
       if (i <= full.length) {
         el.textContent = full.slice(0, i);
         i++;
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+        }
         setTimeout(type, 14);
       }
     }
@@ -433,7 +436,7 @@ def render_slide(
     font-family:'JetBrains Mono',monospace;
     font-size:clamp(.7rem,.9vw,.88rem); line-height:1.7; color:#c9d8f0;
     white-space:pre-wrap; word-wrap:break-word; word-break:break-all;
-    overflow:hidden; min-height:40px;
+    overflow-y:auto; max-height:clamp(250px, 55vh, 600px); min-height:40px;
     border-left:2px solid rgba(0,212,255,.1);
   }}
 

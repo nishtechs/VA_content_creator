@@ -130,7 +130,7 @@ def structure_chunks_into_sections(chunks: list[dict[str, Any]]) -> list[dict[st
                 "section_id": section_id,
                 "title": chunk["heading"],
                 "audio_text": spoken,
-                "visual_brief": chunk["heading"],
+                "visual": chunk["heading"],
                 "code": code_blocks[0].get("code", "") if code_blocks else "",
                 "code_language": code_blocks[0].get("language", "") if code_blocks else "",
                 "category": "code" if code_blocks else "concept",

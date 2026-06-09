@@ -68,6 +68,22 @@ def extract_json_object(text: str) -> dict[str, Any]:
     raise ValueError(f"No JSON object found in: {text[:200]}")
 
 
+def extract_json_array(text: str) -> list[Any]:
+    """Extract a JSON array from LLM output text."""
+    text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
+    match = re.search(r"\[.*\]", text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0), strict=False)
+        except json.JSONDecodeError:
+            # Try fixing common JSON issues
+            cleaned = re.sub(r",\s*}", "}", match.group(0))
+            cleaned = re.sub(r",\s*]", "]", cleaned)
+            cleaned = re.sub(r'[\x00-\x1f]', ' ', cleaned)  # Remove control chars
+            return json.loads(cleaned, strict=False)
+    raise ValueError(f"No JSON array found in: {text[:200]}")
+
+
 def extract_html(text: str) -> str:
     """Extract HTML content from LLM output text."""
     text = re.sub(r"^```(?:html)?|```$", "", text.strip(), flags=re.MULTILINE).strip()

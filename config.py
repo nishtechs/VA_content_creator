@@ -25,6 +25,7 @@ NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "").strip()
 NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip()
 
 # ─── Startup Validation ─────────────────────────────────────────────────────
 def validate_config():
@@ -71,7 +72,7 @@ MIN_WORDS_PER_SECTION: int = 40
 # ─── TTS Settings ───────────────────────────────────────────────────────────
 TTS_LANGUAGE = os.getenv("TTS_LANGUAGE", "hi-IN")
 TTS_SPEAKER = os.getenv("TTS_SPEAKER", "shubh")
-TTS_PACE = float(os.getenv("TTS_PACE", "1.1"))
+TTS_PACE = float(os.getenv("TTS_PACE", "1.0"))
 TTS_MODEL = os.getenv("TTS_MODEL", "bulbul:v3")
 
 # ─── Parallelism ────────────────────────────────────────────────────────────
