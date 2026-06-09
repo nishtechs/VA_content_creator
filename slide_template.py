@@ -129,10 +129,9 @@ def render_slide(
     else:
         body_region = ""
 
-    # Conditionally render badge, title, and subtitle to prevent duplication if LLM outputs them in visual_html
-    badge_html = f'<div class="badge">{badge}</div>' if ("gsap-badge" not in visual_html and "badge" not in visual_html) else ""
-    headline_html = f'<h1 class="hero-title">{headline}</h1>' if "gsap-title" not in visual_html else ""
-    subtitle_html = f'<p class="subtitle">{subtitle}</p>' if (subtitle and "gsap-subtitle" not in visual_html) else ""
+    badge_html = f'<div class="badge">{badge}</div>'
+    headline_html = f'<h1 class="hero-title">{headline}</h1>'
+    subtitle_html = f'<p class="subtitle">{subtitle}</p>' if subtitle else ""
 
     # Auto-advance script
     chain_js = ""
