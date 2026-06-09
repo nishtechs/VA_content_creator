@@ -9,7 +9,29 @@ Always build a fresh agent per crew invocation.
 """
 
 from crewai import Agent
+from crewai_tools import SerperDevTool
 from config import nvidia_llm, nvidia_llm_creative
+
+
+def make_research_scriptwriter_agent() -> Agent:
+    """Create a fresh Technical Researcher & Scriptwriter agent."""
+    return Agent(
+        role="Technical Researcher & Scriptwriter",
+        goal=(
+            "Search the web for accurate technical information on the requested topic and "
+            "generate a comprehensive, structured sections JSON array for tutorial slides."
+        ),
+        backstory=(
+            "You are an expert technical writer and researcher who scours the internet to gather "
+            "accurate, up-to-date information and synthesizes it into engaging educational tutorials. "
+            "You specialize in creating structured sections/slides directly in JSON format, separating "
+            "spoken narration in Hindi Devanagari from visual content in English."
+        ),
+        tools=[SerperDevTool()],
+        llm=nvidia_llm,
+        verbose=False,
+        allow_delegation=False,
+    )
 
 
 def make_chunk_structurer_agent() -> Agent:
@@ -19,7 +41,7 @@ def make_chunk_structurer_agent() -> Agent:
         goal=(
             "Convert raw markdown chunks into clean structured JSON sections. "
             "The 'audio_text' (spoken narration) MUST be in Hindi/Hinglish. "
-            "The 'title' and 'visual_brief' (used for the on-screen slide) MUST be in English."
+            "The 'title' and 'visual' (used for the on-screen slide) MUST be in English."
         ),
         backstory=(
             "You are an expert at distilling tutorial content into bite-sized educational slides. "

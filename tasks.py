@@ -29,6 +29,28 @@ Design System (MUST FOLLOW EXACTLY):
 """
 
 
+def make_research_script_task(agent, topic: str) -> Task:
+    """Create a task to research a topic and generate structured sections JSON directly."""
+    return Task(
+        description=(
+            f"Topic: {topic}\n\n"
+            f"1. Use your web search tool to gather accurate, up-to-date technical information on this topic.\n"
+            f"2. Generate structured tutorial sections/slides directly as a JSON array of objects (no markdown narration script, output JSON directly).\n"
+            f"3. Each object in the JSON array must represent a slide and have EXACTLY these fields:\n"
+            f'   - "section_id": "section_01", "section_02", etc.\n'
+            f'   - "title": "<short engaging title for this slide in ENGLISH, max 6 words>"\n'
+            f'   - "audio_text": "<spoken narration in HINDI written in DEVANAGARI script. Conversational Hindi, explaining the concepts/code clearly, 40-120 words. No English characters, no code, no markdown inside this field>"\n'
+            f'   - "visual": "<ENGLISH bullet description of what to show on screen. Must list the same points as audio_text>"\n'
+            f'   - "code": "<code snippet verbatim if any, or empty string>"\n'
+            f'   - "code_language": "<language of the code block, e.g. python, bash, or empty string>"\n'
+            f'   - "category": "<one of: intro, concept, code, setup, demo, summary>"\n'
+            f"4. Return ONLY the JSON array, no markdown fences, no explanation."
+        ),
+        expected_output="A single JSON array of structured sections/slides.",
+        agent=agent,
+    )
+
+
 def make_chunking_task(agent, chunk: dict, section_id: str) -> Task:
     """Create a task to structure a raw chunk into a JSON section.
     The spoken_text is pre-extracted, so the LLM only needs to clean/refine it
@@ -93,26 +115,26 @@ def make_chunking_task(agent, chunk: dict, section_id: str) -> Task:
             f'NO code, NO timestamps, NO [Screen:] tags, NO markdown, NO English sentences. '
             f'Natural conversational Hindi speech, 40-120 words. '
             f'If this section has code, this Hindi narration must EXPLAIN the code>",\n'
-            f'  "visual_brief": "<ENGLISH bullet description of what to show on screen. '
+            f'  "visual": "<ENGLISH bullet description of what to show on screen. '
             f'MUST cover the SAME key concepts/steps described in audio_text so the viewer sees '
             f'on screen what the narrator is explaining. Include: key points, icons, layout suggestions, '
             f'any URLs to display as plain text>",\n'
             f"{code_field_spec}"
             f'  "category": "<one of: intro, concept, code, setup, demo, summary>"\n\n'
             f"QUALITY RULE — VISUAL & AUDIO ALIGNMENT (CRITICAL):\n"
-            f"- The 'visual_brief' and 'audio_text' MUST be about the SAME topic and cover the SAME core points.\n"
-            f"- If the audio narration explains three steps, the visual brief MUST list the same three steps.\n"
-            f"- If the audio talks about a specific tool/library/concept, the visual brief MUST reference it.\n"
+            f"- The 'visual' and 'audio_text' MUST be about the SAME topic and cover the SAME core points.\n"
+            f"- If the audio narration explains three steps, the visual MUST list the same three steps.\n"
+            f"- If the audio talks about a specific tool/library/concept, the visual MUST reference it.\n"
             f"- There should be NO mismatch between what the viewer sees and what the narrator says.\n\n"
             f"LANGUAGE RULES (STRICT):\n"
             f"- audio_text → HINDI in DEVANAGARI script ONLY (this becomes the spoken narration). "
             f"If the source narration is in English or romanized Hinglish, TRANSLATE it into proper Hindi (देवनागरी). "
             f"Must contain ONLY speakable words: no code, no markdown, no timestamps, no stage directions.\n"
-            f"- title and visual_brief → ENGLISH ONLY (these drive the on-screen slide).\n"
+            f"- title and visual → ENGLISH ONLY (these drive the on-screen slide).\n"
             f"- code → keep EXACTLY as written (any language), empty string if no code.\n\n"
             f"Return ONLY the JSON object, no markdown fences, no explanation."
         ),
-        expected_output="A single JSON object with section_id, title, audio_text, visual_brief, code, code_language, category.",
+        expected_output="A single JSON object with section_id, title, audio_text, visual, code, code_language, category.",
         agent=agent,
     )
 
@@ -132,17 +154,25 @@ def make_visual_task(agent, section_data: dict) -> Task:
             "Your visual HTML should focus on explaining what the code does, showing data flows, "
             "inputs/outputs, or annotated step-by-step breakdowns — NOT repeating the raw code.\n"
         )
+    else:
+        code_note = (
+            "\n\nNOTE: This section does NOT contain code. You MUST NOT include any code blocks, "
+            "typewriter code, or `code-wrap` elements in your slide_html. Keep all visuals strictly "
+            "focused on concepts, theory, steps, or features using flow-steps or glass-boxes.\n"
+        )
 
     return Task(
         description=(
             f"Produce PREMIUM structured content for one tutorial slide as a JSON object.\n\n"
             f"SLIDE TITLE: {section_data['title']}\n"
             f"SLIDE CATEGORY: {section_data.get('category', 'concept')}\n"
-            f"VISUAL BRIEF: {section_data['visual_brief']}\n"
+            f"VISUAL: {section_data.get('visual') or section_data.get('visual_brief') or ''}\n"
             f"AUDIO TEXT (narrator will say this — your visual MUST match): {section_data.get('audio_text', 'N/A')}\n"
             f"{code_note}\n"
             f"═══════════════════════════════════════════\n"
-            f"YOUR GOAL: Create VISUALLY STUNNING HTML that explains the topic.\n"
+            f"YOUR GOAL: You are responsible for the FULL HTML layout of the slide.\n"
+            f"Create VISUALLY STUNNING, creative layouts using CSS Grid or Flexbox.\n"
+            f"Do not just make a single column of text. Use split panes, metrics grids, centered hero views, etc.\n"
             f"═══════════════════════════════════════════\n\n"
             f"AVAILABLE PRE-BUILT COMPONENTS (use these for consistent premium styling):\n\n"
             f"1. GLASS BOX: <div class=\"glass-box\"><h3>Title</h3><p>Content</p></div>\n"
@@ -153,6 +183,15 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"   - Terminal-styled command box with auto $ prefix. Use for CLI commands.\n\n"
             f"4. HIGHLIGHT TEXT: <span class=\"highlight\">cyan text</span> or <span class=\"highlight-purple\">purple text</span>\n\n"
             f"5. ICONS: FontAwesome 6 — <i class=\"fas fa-robot\"></i>, <i class=\"fas fa-database\"></i>, etc.\n\n"
+            f"6. TYPEWRITER CODE: If you want animated code, use: <div class=\"code-wrap gsap-reveal\"><div class=\"code-head\"><span class=\"code-filename\">python</span></div><pre class=\"code-body\"><code id=\"codeTarget\" data-code=\"print('hello')\"></code></pre></div>\n\n"
+            f"═══════════════════════════════════════════\n"
+            f"GSAP ANIMATION CLASSES (CRITICAL):\n"
+            f"═══════════════════════════════════════════\n"
+            f"Add these classes to your elements so our animation engine can sequence them:\n"
+            f"- `gsap-badge`: Add to the top-level small badge (e.g. <span class=\"gsap-badge badge\">INTRO</span>)\n"
+            f"- `gsap-title`: Add to your main `<h1>` or `<h2>` headline.\n"
+            f"- `gsap-subtitle`: Add to your subtitle paragraph.\n"
+            f"- `gsap-reveal`: Add to ANY container (like `glass-box`, `flow-step`, `code-wrap`) that should stagger-animate into view.\n\n"
             f"═══════════════════════════════════════════\n"
             f"CATEGORY-SPECIFIC LAYOUT RULES:\n"
             f"═══════════════════════════════════════════\n\n"
@@ -181,15 +220,11 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"- Add border-radius:14px, padding:16px to custom containers.\n\n"
             f"Return a JSON object with EXACTLY these fields (no markdown fences):\n"
             f"{{\n"
-            f'  "headline": "<engaging title, max 7 words in English>",\n'
-            f'  "badge": "<2-3 words uppercase, e.g., CORE CONCEPT, RAG FLOW, LIVE DEMO>",\n'
-            f'  "subtitle": "<one sentence describing this slide in English>",\n'
-            f'  "visual_html": "<premium visual HTML using the components above>",\n'
-            f'  "custom_css": "<additional CSS if needed beyond pre-built classes>",\n'
-            f'  "footer": "<short footer text>"\n'
+            f'  "slide_html": "<The FULL inner HTML of the slide body, including your badge, title, subtitle, and layout components>",\n'
+            f'  "custom_css": "<additional CSS if needed beyond pre-built classes>"\n'
             f"}}\n"
         ),
-        expected_output='A single JSON object with headline, badge, subtitle, visual_html, custom_css, and footer.',
+        expected_output='A single JSON object with slide_html and custom_css.',
         agent=agent,
     )
 

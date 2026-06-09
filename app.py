@@ -28,14 +28,15 @@ from project import (
     list_projects,
     slugify,
 )
-from agents import make_chunk_structurer_agent, make_visual_designer_agent
-from tasks import make_chunking_task, make_visual_task
+from agents import make_chunk_structurer_agent, make_visual_designer_agent, make_research_scriptwriter_agent
+from tasks import make_chunking_task, make_visual_task, make_research_script_task
 from tools import generate_audio_direct, save_html_direct
 from chunker import split_script_into_chunks
 from llm_runner import run_crew_with_retry
 from slide_template import render_slide, parse_content, build_and_save_slide
 from utils import (
     extract_json_object,
+    extract_json_array,
     extract_html,
     save_sections_json,
     load_sections_json,
@@ -61,17 +62,17 @@ st.set_page_config(
 # ─── Custom CSS ──────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .stApp { background-color: #0a0e27; }
+    .stApp { background-color: var(--background-color); color: var(--text-color); }
     .main-header {
-        background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(167,139,250,0.1));
+        background: linear-gradient(135deg, rgba(0,212,255,0.06), rgba(167,139,250,0.06));
         border: 1px solid rgba(0,212,255,0.2);
         border-radius: 16px;
         padding: 24px;
         margin-bottom: 24px;
     }
     .section-card {
-        background: rgba(0,212,255,0.05);
-        border: 1.5px solid rgba(0,212,255,0.2);
+        background: rgba(0,212,255,0.03);
+        border: 1.5px solid rgba(0,212,255,0.15);
         border-radius: 12px;
         padding: 16px;
         margin: 8px 0;
@@ -86,14 +87,14 @@ st.markdown("""
     .status-pending { color: #ffaa00; font-weight: 700; }
     .status-running { color: #00d4ff; font-weight: 700; }
     .stat-box {
-        background: rgba(167,139,250,0.1);
-        border: 1px solid rgba(167,139,250,0.3);
+        background: rgba(167,139,250,0.05);
+        border: 1px solid rgba(167,139,250,0.20);
         border-radius: 10px;
         padding: 12px 16px;
         text-align: center;
     }
     .stat-val { font-size: 1.8rem; font-weight: 800; color: #a78bfa; }
-    .stat-label { font-size: 0.75rem; color: #b0b8d4; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-label { font-size: 0.75rem; color: var(--text-color); opacity: 0.75; text-transform: uppercase; letter-spacing: 1px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -154,7 +155,7 @@ def render_project_gate():
         <h1 style="margin:0; background:linear-gradient(135deg,#00d4ff,#a78bfa);
         -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
         🎬 VA Creator</h1>
-        <p style="color:#b0b8d4; margin:4px 0 0 0;">
+        <p style="color:var(--text-color); opacity:0.75; margin:4px 0 0 0;">
         Start by naming your project. All slides and audio will be saved in a folder for that project.
         </p>
     </div>
@@ -229,7 +230,7 @@ def _fallback_section(chunk: dict, section_id: str) -> dict[str, Any]:
         "section_id": section_id,
         "title": chunk.get("heading", section_id),
         "audio_text": spoken,
-        "visual_brief": chunk.get("heading", ""),
+        "visual": chunk.get("heading", ""),
         "code": primary_code,
         "code_language": primary_lang,
         "category": "code" if code_blocks else "concept",
@@ -292,7 +293,10 @@ def process_single_section(section: dict, next_section_id: str) -> tuple[str, bo
     proj_name = st.session_state.project_name  # capture before threads (session_state not thread-safe)
 
     def gen_video() -> str:
-        """Generate slide content via LLM, then render deterministically (thread-safe)."""
+        """Generate slide content via LLM if not present, then render deterministically (thread-safe)."""
+        if "slide_html" in section and section["slide_html"]:
+            build_and_save_slide(section, section, next_section_id, proj_name)
+            return "ok"
         _result, task = run_crew_with_retry(
             make_visual_designer_agent,
             lambda agent: make_visual_task(agent, section),
@@ -393,16 +397,20 @@ def regenerate_video_only(section_idx: int) -> tuple[bool, str]:
         os.remove(h_path)
 
     try:
-        # Generate slide content via LLM, then render deterministically
-        _result, task = run_crew_with_retry(
-            make_visual_designer_agent,
-            lambda agent: make_visual_task(agent, section),
-        )
-        content = parse_content(str(task.output.raw))
+        if "slide_html" in section and section["slide_html"]:
+            next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
+            build_and_save_slide(section, section, next_id, st.session_state.project_name)
+        else:
+            # Generate slide content via LLM, then render deterministically
+            _result, task = run_crew_with_retry(
+                make_visual_designer_agent,
+                lambda agent: make_visual_task(agent, section),
+            )
+            content = parse_content(str(task.output.raw))
 
-        # Render + save (chain to next section)
-        next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
-        build_and_save_slide(section, content, next_id, st.session_state.project_name)
+            # Render + save (chain to next section)
+            next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
+            build_and_save_slide(section, content, next_id, st.session_state.project_name)
 
         st.session_state.video_status[sid] = "complete"
         st.session_state.progress_log.append(f"[Redo Video] {sid}: ✅ Slide regenerated")
@@ -464,18 +472,73 @@ with st.sidebar:
 
     script_source = st.radio(
         "Script Source",
-        ["📄 Use script.md", "📝 Paste Script", "📁 Upload File"],
+        ["📄 Use script.md", "📝 Paste Script", "📁 Upload .md File", "🔍 Topic + Web Research", "⚙️ Upload/Paste sections.json"],
         index=0,
     )
 
+    # Placeholders for fields
+    md_placeholder = (
+        "### 🎬 SECTION 1: INTRODUCTION\n"
+        "[Screen: Show the title slide \"Introduction to Python\"]\n"
+        "> \"नमस्ते दोस्तों! आज हम सीखेंगे कि कैसे एक वेब ऐप बनाते हैं।\"\n\n"
+        "### 🎬 SECTION 2: SETUP\n"
+        "[Screen: Show terminal command box]\n"
+        "> \"सबसे पहले हम streamlit लाइब्रेरी इंस्टॉल करेंगे।\"\n"
+        "```bash\n"
+        "pip install streamlit\n"
+        "```"
+    )
+
+    json_placeholder = (
+        "[\n"
+        "  {\n"
+        "    \"section_id\": \"section_01\",\n"
+        "    \"title\": \"Introduction to Python\",\n"
+        "    \"audio_text\": \"आज हम पायथन के बारे में सीखेंगे। पायथन एक बहुत ही सरल और शक्तिशाली प्रोग्रामिंग भाषा है।\",\n"
+        "    \"visual\": \"- Introduction to Python\\n- Why choose Python\\n- Simplicity & readability\",\n"
+        "    \"code\": \"print('Hello, World!')\",\n"
+        "    \"code_language\": \"python\",\n"
+        "    \"category\": \"intro\"\n"
+        "  }\n"
+        "]"
+    )
+
     if script_source == "📝 Paste Script":
-        script_text = st.text_area("Paste your markdown script:", height=300)
-    elif script_source == "📁 Upload File":
+        script_text = st.text_area("Paste your markdown script:", placeholder=md_placeholder, height=300)
+    elif script_source == "📁 Upload .md File":
         uploaded = st.file_uploader("Upload .md file", type=["md", "txt"])
         if uploaded:
             script_text = uploaded.read().decode("utf-8")
         else:
             script_text = ""
+    elif script_source == "🔍 Topic + Web Research":
+        topic_text = st.text_input("Enter a topic for the AI to research and generate sections for:")
+        script_text = st.session_state.get("researched_script", "")
+        if st.button("🔍 Generate Sections via Research", use_container_width=True, disabled=not topic_text.strip()):
+            with st.spinner("Researching and generating sections JSON... (This takes a minute)"):
+                try:
+                    result, _task = run_crew_with_retry(
+                        make_research_scriptwriter_agent,
+                        lambda agent: make_research_script_task(agent, topic_text),
+                    )
+                    # Safely parse and format as pretty JSON
+                    parsed_array = extract_json_array(str(result))
+                    st.session_state.researched_script = json.dumps(parsed_array, indent=2, ensure_ascii=False)
+                    script_text = st.session_state.researched_script
+                    st.success("Sections JSON generated! You can review it below or run the pipeline.")
+                except Exception as e:
+                    st.error(f"Research failed: {e}")
+        if script_text:
+            script_text = st.text_area("Review/Edit Researched Sections JSON:", value=script_text, height=300)
+    elif script_source == "⚙️ Upload/Paste sections.json":
+        sections_input_type = st.radio("Provide sections.json:", ["Paste JSON", "Upload JSON"])
+        if sections_input_type == "Paste JSON":
+            raw_json_input = st.text_area("Paste your sections array here:", placeholder=json_placeholder, height=300)
+        else:
+            uploaded_json = st.file_uploader("Upload sections.json", type=["json"])
+            raw_json_input = uploaded_json.read().decode("utf-8") if uploaded_json else ""
+        
+        script_text = "BYPASS_MODE"  # dummy value so the "Run Full Pipeline" button enables
     else:
         script_text = get_script_content()
 
@@ -511,7 +574,7 @@ st.markdown(f"""
     <h1 style="margin:0; background:linear-gradient(135deg,#00d4ff,#a78bfa);
     -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
     🎬 {st.session_state.project_name}</h1>
-    <p style="color:#b0b8d4; margin:4px 0 0 0;">
+    <p style="color:var(--text-color); opacity:0.75; margin:4px 0 0 0;">
     VA Creator &bull; AI-Powered Tutorial Video Generator &bull;
     <span style="color:#a78bfa;">Project: {st.session_state.project_name}</span>
     </p>
@@ -566,45 +629,70 @@ if run_full and script_text:
         with progress_container:
             st.markdown("### 🔄 Pipeline Running...")
 
-            # Step 1: Chunk
-            with st.status("📦 Splitting script into chunks...", expanded=True) as status:
-                chunks = split_script_into_chunks(script_text)
-                st.session_state.chunks = chunks
-                st.write(f"✓ Created **{len(chunks)}** chunks")
-                status.update(label=f"📦 Split into {len(chunks)} chunks", state="complete")
+            if script_source in ["⚙️ Upload/Paste sections.json", "🔍 Topic + Web Research"]:
+                with st.status("⚙️ Loading sections from JSON...", expanded=True) as status:
+                    json_to_load = raw_json_input if script_source == "⚙️ Upload/Paste sections.json" else script_text
+                    if not json_to_load.strip():
+                        st.error("No JSON provided!")
+                        st.stop()
+                    try:
+                        sections = extract_json_array(json_to_load)
+                        if not isinstance(sections, list):
+                            st.error("Invalid JSON format. Expected an array of sections.")
+                            st.stop()
+                        st.session_state.sections = sections
+                        save_sections_json(sections)
 
-            # Step 2: Structure
-            with st.status("🧠 Structuring sections with AI...", expanded=True) as status:
-                sections = []
-                progress_bar = st.progress(0)
-                status_text = st.empty()
+                        # Initialize status
+                        for sec in sections:
+                            sid = sec.get("section_id", "unknown")
+                            st.session_state.audio_status[sid] = "pending"
+                            st.session_state.video_status[sid] = "pending"
+                            st.session_state.section_status[sid] = "pending"
+                        status.update(label=f"⚙️ Loaded {len(sections)} sections directly from JSON", state="complete")
+                    except Exception as e:
+                        st.error(f"Invalid JSON: {e}")
+                        st.stop()
+            else:
+                # Step 1: Chunk
+                with st.status("📦 Splitting script into chunks...", expanded=True) as status:
+                    chunks = split_script_into_chunks(script_text)
+                    st.session_state.chunks = chunks
+                    st.write(f"✓ Created **{len(chunks)}** chunks")
+                    status.update(label=f"📦 Split into {len(chunks)} chunks", state="complete")
 
-                for i, chunk in enumerate(chunks):
-                    section_id = f"section_{i+1:02d}"
-                    status_text.text(f"Processing chunk {i+1}/{len(chunks)}: {chunk['heading']}")
+                # Step 2: Structure
+                with st.status("🧠 Structuring sections with AI...", expanded=True) as status:
+                    sections = []
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
 
-                    section = structure_single_chunk(chunk, section_id)
-                    sections.append(section)
+                    for i, chunk in enumerate(chunks):
+                        section_id = f"section_{i+1:02d}"
+                        status_text.text(f"Processing chunk {i+1}/{len(chunks)}: {chunk['heading']}")
 
-                    progress_bar.progress((i + 1) / len(chunks))
-                    time.sleep(1.5)  # throttle to respect NVIDIA rate limits
+                        section = structure_single_chunk(chunk, section_id)
+                        sections.append(section)
 
-                st.session_state.sections = sections
-                save_sections_json(sections)
+                        progress_bar.progress((i + 1) / len(chunks))
+                        time.sleep(1.5)  # throttle to respect NVIDIA rate limits
 
-                # Initialize status
-                for sec in sections:
-                    sid = sec["section_id"]
-                    audio_ok = _audio_exists(sid)
-                    video_ok = _video_exists(sid)
-                    st.session_state.audio_status[sid] = "complete" if audio_ok else "pending"
-                    st.session_state.video_status[sid] = "complete" if video_ok else "pending"
-                    if audio_ok and video_ok:
-                        st.session_state.section_status[sid] = "complete"
-                    else:
-                        st.session_state.section_status[sid] = "pending"
+                    st.session_state.sections = sections
+                    save_sections_json(sections)
 
-                status.update(label=f"🧠 Structured {len(sections)} sections", state="complete")
+                    # Initialize status
+                    for sec in sections:
+                        sid = sec["section_id"]
+                        audio_ok = _audio_exists(sid)
+                        video_ok = _video_exists(sid)
+                        st.session_state.audio_status[sid] = "complete" if audio_ok else "pending"
+                        st.session_state.video_status[sid] = "complete" if video_ok else "pending"
+                        if audio_ok and video_ok:
+                            st.session_state.section_status[sid] = "complete"
+                        else:
+                            st.session_state.section_status[sid] = "pending"
+
+                    status.update(label=f"🧠 Structured {len(sections)} sections", state="complete")
 
             # Step 3: Generate slides
             with st.status(f"🎨 Generating {len(sections)} slides...", expanded=True) as status:
@@ -759,6 +847,108 @@ if st.session_state.sections:
                         regenerate_video_only(idx)
                         generate_master_index(st.session_state.sections, st.session_state.project_name)
                     st.rerun()
+
+            # ── Edit Section Content ──
+            with st.expander("✏️ Edit Section Content", expanded=False):
+                edit_title = st.text_input("Title", value=section.get("title", ""), key=f"edit_title_{sid}")
+                
+                categories = ["intro", "concept", "code", "setup", "demo", "summary"]
+                current_cat = section.get("category", "concept")
+                cat_index = categories.index(current_cat) if current_cat in categories else 1
+                edit_category = st.selectbox(
+                    "Category",
+                    categories,
+                    index=cat_index,
+                    key=f"edit_category_{sid}"
+                )
+                
+                edit_audio_text = st.text_area("Audio Text (Hindi Devanagari)", value=section.get("audio_text", ""), key=f"edit_audio_text_{sid}", height=100)
+                
+                visual_val = section.get("visual") or section.get("visual_brief") or ""
+                edit_visual = st.text_area("Visual Brief / Description (English)", value=visual_val, key=f"edit_visual_{sid}", height=100)
+                
+                edit_code = st.text_area("Code (optional)", value=section.get("code", ""), key=f"edit_code_{sid}", height=100)
+                edit_code_lang = st.text_input("Code Language", value=section.get("code_language", ""), key=f"edit_code_lang_{sid}")
+                
+                # Advanced direct HTML/CSS edit (if slide has already been generated)
+                edit_html = ""
+                edit_css = ""
+                has_slide_html = ("slide_html" in section and bool(section["slide_html"])) or ("visual_html" in section and bool(section["visual_html"]))
+                current_slide_html = section.get("slide_html") or section.get("visual_html") or ""
+                
+                if has_slide_html:
+                    st.markdown("---")
+                    st.caption("🛠️ **Direct Presentation Code Tweaks (Optional)**")
+                    edit_html = st.text_area("Direct HTML layout code", value=current_slide_html, key=f"edit_html_{sid}", height=150)
+                    edit_css = st.text_area("Direct custom CSS code", value=section.get("custom_css", ""), key=f"edit_css_{sid}", height=80)
+                
+                # Action buttons
+                btn_save_col1, btn_save_col2 = st.columns(2)
+                
+                with btn_save_col1:
+                    if st.button("💾 Save & Regenerate (via AI)", key=f"save_ai_{sid}", use_container_width=True, disabled=st.session_state.pipeline_running):
+                        # 1. Update sections data
+                        section["title"] = edit_title
+                        section["category"] = edit_category
+                        section["audio_text"] = edit_audio_text
+                        section["visual"] = edit_visual
+                        section["visual_brief"] = edit_visual
+                        section["code"] = edit_code
+                        section["code_language"] = edit_code_lang
+                        
+                        # Remove generated slide elements so LLM regenerates
+                        if "slide_html" in section:
+                            del section["slide_html"]
+                        if "visual_html" in section:
+                            del section["visual_html"]
+                        if "custom_css" in section:
+                            del section["custom_css"]
+                        
+                        st.session_state.sections[idx] = section
+                        save_sections_json(st.session_state.sections)
+                        
+                        # 2. Run regeneration
+                        with st.spinner("Regenerating slide and audio via AI..."):
+                            regenerate_audio_only(idx)
+                            regenerate_video_only(idx)
+                            generate_master_index(st.session_state.sections, st.session_state.project_name)
+                        
+                        st.success(f"✓ Section {sid} successfully regenerated!")
+                        st.rerun()
+                
+                with btn_save_col2:
+                    if st.button("⚡ Save & Re-render (Instant)", key=f"save_instant_{sid}", use_container_width=True, disabled=st.session_state.pipeline_running):
+                        # 1. Update sections data
+                        section["title"] = edit_title
+                        section["category"] = edit_category
+                        section["audio_text"] = edit_audio_text
+                        section["visual"] = edit_visual
+                        section["visual_brief"] = edit_visual
+                        section["code"] = edit_code
+                        section["code_language"] = edit_code_lang
+                        
+                        # If slide_html is edited directly, save it
+                        if has_slide_html:
+                            section["slide_html"] = edit_html
+                            section["visual_html"] = edit_html
+                            section["custom_css"] = edit_css
+                        
+                        st.session_state.sections[idx] = section
+                        save_sections_json(st.session_state.sections)
+                        
+                        with st.spinner("Instantly re-rendering slide & audio..."):
+                            regenerate_audio_only(idx)
+                            
+                            next_id = st.session_state.sections[idx + 1]["section_id"] if idx + 1 < len(st.session_state.sections) else ""
+                            build_and_save_slide(section, section, next_id, st.session_state.project_name)
+                            
+                            st.session_state.video_status[sid] = "complete"
+                            _refresh_combined_status(sid)
+                            
+                            generate_master_index(st.session_state.sections, st.session_state.project_name)
+                        
+                        st.success(f"✓ Section {sid} updated instantly!")
+                        st.rerun()
 
         st.divider()
 
