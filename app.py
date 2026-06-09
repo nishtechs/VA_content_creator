@@ -302,6 +302,13 @@ def process_single_section(section: dict, next_section_id: str) -> tuple[str, bo
             lambda agent: make_visual_task(agent, section),
         )
         content = parse_content(str(task.output.raw))
+        if not content or ("slide_html" not in content and "visual_html" not in content):
+            raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
+        
+        # Save generated slide content back to the section dict
+        section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
+        section["custom_css"] = content.get("custom_css") or ""
+        
         build_and_save_slide(section, content, next_section_id, proj_name)
         return "ok"
 
@@ -407,6 +414,13 @@ def regenerate_video_only(section_idx: int) -> tuple[bool, str]:
                 lambda agent: make_visual_task(agent, section),
             )
             content = parse_content(str(task.output.raw))
+            if not content or ("slide_html" not in content and "visual_html" not in content):
+                raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
+            
+            # Save generated slide content back to the section dict and file
+            section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
+            section["custom_css"] = content.get("custom_css") or ""
+            save_sections_json(st.session_state.sections)
 
             # Render + save (chain to next section)
             next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
@@ -725,6 +739,8 @@ if run_full and script_text:
                     completed_count += 1
                     progress_bar2.progress(completed_count / len(sections))
 
+                # Save the updated sections list containing generated slide_html/custom_css
+                save_sections_json(st.session_state.sections)
                 # Generate master index
                 generate_master_index(sections, st.session_state.project_name)
                 status.update(label=f"🎨 Generated {len(sections)} slides", state="complete")
@@ -771,6 +787,8 @@ elif run_pending and total_sections > 0:
                     st.session_state.progress_log.append(f"{sid}: {msg}")
                     progress_bar.progress((i + 1) / len(pending_sections))
 
+                # Save the updated sections list containing generated slide_html/custom_css
+                save_sections_json(st.session_state.sections)
                 generate_master_index(sections, st.session_state.project_name)
                 status.update(label="▶️ Pending sections processed", state="complete")
     except Exception as e:
