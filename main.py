@@ -160,7 +160,14 @@ def process_section(section: dict[str, Any], next_section_id: str, chunk_hash: s
             make_visual_designer_agent,
             lambda agent: make_visual_task(agent, section),
         )
-        return parse_content(str(task.output.raw))
+        content = parse_content(str(task.output.raw))
+        if not content or ("slide_html" not in content and "visual_html" not in content):
+            raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
+        
+        # Save generated slide content back to the section dict
+        section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
+        section["custom_css"] = content.get("custom_css") or ""
+        return content
 
     def gen_audio() -> str:
         """Generate audio directly (no LLM needed)."""
@@ -242,6 +249,9 @@ def run_pipeline(script_path: str, project: str) -> None:
             section = sections[idx]
             status = "✅" if success else "❌"
             print(f"  {status} [{completed_count}/{len(sections)}] {section['section_id']}: {section['title']}")
+
+    # Save the updated sections list containing generated slide_html/custom_css
+    save_sections_json(sections)
 
     # STEP 4: Master index
     index_path = generate_master_index(sections, project)

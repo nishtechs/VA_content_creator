@@ -183,7 +183,6 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"   - Terminal-styled command box with auto $ prefix. Use for CLI commands.\n\n"
             f"4. HIGHLIGHT TEXT: <span class=\"highlight\">cyan text</span> or <span class=\"highlight-purple\">purple text</span>\n\n"
             f"5. ICONS: FontAwesome 6 — <i class=\"fas fa-robot\"></i>, <i class=\"fas fa-database\"></i>, etc.\n\n"
-            f"6. TYPEWRITER CODE: If you want animated code, use: <div class=\"code-wrap gsap-reveal\"><div class=\"code-head\"><span class=\"code-filename\">python</span></div><pre class=\"code-body\"><code id=\"codeTarget\" data-code=\"print('hello')\"></code></pre></div>\n\n"
             f"═══════════════════════════════════════════\n"
             f"GSAP ANIMATION CLASSES (CRITICAL):\n"
             f"═══════════════════════════════════════════\n"
