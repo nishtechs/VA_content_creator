@@ -9,6 +9,7 @@ Always build a fresh agent per crew invocation.
 """
 
 from crewai import Agent
+from crewai.mcp import MCPServerStdio
 from crewai_tools import SerperDevTool
 from config import nvidia_llm, nvidia_llm_creative
 
@@ -57,6 +58,10 @@ def make_chunk_structurer_agent() -> Agent:
 
 def make_visual_designer_agent() -> Agent:
     """Create a fresh HTML Visual Designer agent."""
+    remotion_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "@remotion/mcp@latest"]
+    )
     return Agent(
         role="Premium HTML Visual Designer",
         goal=(
@@ -74,6 +79,7 @@ def make_visual_designer_agent() -> Agent:
             "never a boring wall of text. Every word of visible text is in English."
         ),
         llm=nvidia_llm_creative,
+        mcps=[remotion_mcp],
         verbose=False,
         allow_delegation=False,
     )
