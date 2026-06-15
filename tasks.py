@@ -186,11 +186,9 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"═══════════════════════════════════════════\n"
             f"GSAP ANIMATION CLASSES (CRITICAL):\n"
             f"═══════════════════════════════════════════\n"
-            f"Add these classes to your elements so our animation engine can sequence them:\n"
-            f"- `gsap-badge`: Add to the top-level small badge (e.g. <span class=\"gsap-badge badge\">INTRO</span>)\n"
-            f"- `gsap-title`: Add to your main `<h1>` or `<h2>` headline.\n"
-            f"- `gsap-subtitle`: Add to your subtitle paragraph.\n"
+            f"Add this class to your custom visual elements so our animation engine can sequence them:\n"
             f"- `gsap-reveal`: Add to ANY container (like `glass-box`, `flow-step`, `code-wrap`) that should stagger-animate into view.\n\n"
+            f"Note: The slide title, subtitle, and badge are rendered automatically at the top of the slide by the system template. DO NOT generate them inside your slide_html.\n"
             f"═══════════════════════════════════════════\n"
             f"CATEGORY-SPECIFIC LAYOUT RULES:\n"
             f"═══════════════════════════════════════════\n\n"
@@ -219,7 +217,7 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"- Add border-radius:14px, padding:16px to custom containers.\n\n"
             f"Return a JSON object with EXACTLY these fields (no markdown fences):\n"
             f"{{\n"
-            f'  "slide_html": "<The FULL inner HTML of the slide body, including your badge, title, subtitle, and layout components>",\n'
+            f'  "slide_html": "<The HTML layout of the slide body. DO NOT include the slide badge, title, or subtitle here. Only include your custom visual layout components like glass-boxes, flow-steps, or grids.>",\n'
             f'  "custom_css": "<additional CSS if needed beyond pre-built classes>"\n'
             f"}}\n"
         ),
