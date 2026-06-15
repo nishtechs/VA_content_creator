@@ -24,6 +24,7 @@ Command to Run: `venv\Scripts\streamlit.exe run app.py`
 - 🌓 **Dynamic Contrast Theme Support** — Dashboard layout adapts dynamically to Streamlit light and dark themes for clear text readability.
 - 📦 **Smart Chunker** — Intelligently parses long scripts into well-paced visual section chunks.
 - ♻️ **Smart Resume Support** — Fast resume skips already completed slide/audio files.
+- 🔌 **MCP Server Integration** — Integrates the `@remotion/mcp` Model Context Protocol server into the HTML Visual Designer agent for rich Remotion-based animation design context.
 
 ---
 
@@ -160,7 +161,7 @@ Open `http://localhost:8501/` in your browser to manage, preview, edit, and rege
 | Agent | Role | Tool Used |
 | :--- | :--- | :--- |
 | **Content Structurer** | Parses script chunks → clean JSON sections | — |
-| **Visual Designer** | Generates dark cyber-themed HTML slide page | — |
+| **Visual Designer** | Generates dark cyber-themed HTML slide page | `@remotion/mcp` (MCP Server via Stdio) |
 | **Audio Generator** | Calls Sarvam TTS for Hindi MP3 narration | `SarvamTTSTool` |
 | **HTML Publisher** | Injects audio source & slide navigation chains | `HTMLSaverTool` |
 
