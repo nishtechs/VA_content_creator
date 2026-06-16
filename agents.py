@@ -84,7 +84,7 @@ def make_visual_designer_agent() -> Agent:
     )
     prettier_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "prettier-mcp"]
+        args=["-y", "@prettier/mcp"]
     )
     exa_mcp = MCPServerStdio(
         command="npx",

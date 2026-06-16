@@ -24,7 +24,7 @@ Command to Run: `venv\Scripts\streamlit.exe run app.py`
 - 🌓 **Dynamic Contrast Theme Support** — Dashboard layout adapts dynamically to Streamlit light and dark themes for clear text readability.
 - 📦 **Smart Chunker** — Intelligently parses long scripts into well-paced visual section chunks.
 - ♻️ **Smart Resume Support** — Fast resume skips already completed slide/audio files.
-- 🔌 **MCP Server Integration** — Integrates `@remotion/mcp` (Remotion docs), `@genwave/svgmaker-mcp` (SVG generation), `@lottiefiles/creator-mcp` (Lottie animations), `stylelint-mcp` (CSS linting), `prettier-mcp` (code formatting), `exa-mcp-server` (web search), and `@madhan-g-p/devdocs-mcp-server` (documentation lookup) into the agents to enhance research depth, slide quality, and code accuracy.
+- 🔌 **MCP Server Integration** — Integrates `@remotion/mcp` (Remotion docs), `@genwave/svgmaker-mcp` (SVG generation), `@lottiefiles/creator-mcp` (Lottie animations), `stylelint-mcp` (CSS linting), `@prettier/mcp` (code formatting), `exa-mcp-server` (web search), and `@madhan-g-p/devdocs-mcp-server` (documentation lookup) into the agents to enhance research depth, slide quality, and code accuracy.
 
 ---
 
@@ -161,7 +161,7 @@ Open `http://localhost:8501/` in your browser to manage, preview, edit, and rege
 | Agent | Role | Tool Used |
 | :--- | :--- | :--- |
 | **Content Structurer** | Parses script chunks → clean JSON sections | — |
-| **Visual Designer** | Generates dark cyber-themed HTML slide page | `@remotion/mcp`, `@genwave/svgmaker-mcp`, `@lottiefiles/creator-mcp`, `stylelint-mcp`, `prettier-mcp`, `exa-mcp-server`, `@madhan-g-p/devdocs-mcp-server` (MCP Servers via Stdio) |
+| **Visual Designer** | Generates dark cyber-themed HTML slide page | `@remotion/mcp`, `@genwave/svgmaker-mcp`, `@lottiefiles/creator-mcp`, `stylelint-mcp`, `@prettier/mcp`, `exa-mcp-server`, `@madhan-g-p/devdocs-mcp-server` (MCP Servers via Stdio) |
 | **Audio Generator** | Calls Sarvam TTS for Hindi MP3 narration | `SarvamTTSTool` |
 | **HTML Publisher** | Injects audio source & slide navigation chains | `HTMLSaverTool` |
 
