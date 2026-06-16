@@ -403,28 +403,33 @@ def regenerate_video_only(section_idx: int) -> tuple[bool, str]:
     if os.path.exists(h_path):
         os.remove(h_path)
 
-    try:
-        if "slide_html" in section and section["slide_html"]:
-            next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
-            build_and_save_slide(section, section, next_id, st.session_state.project_name)
-        else:
-            # Generate slide content via LLM, then render deterministically
-            _result, task = run_crew_with_retry(
-                make_visual_designer_agent,
-                lambda agent: make_visual_task(agent, section),
-            )
-            content = parse_content(str(task.output.raw))
-            if not content or ("slide_html" not in content and "visual_html" not in content):
-                raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
-            
-            # Save generated slide content back to the section dict and file
-            section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
-            section["custom_css"] = content.get("custom_css") or ""
-            save_sections_json(st.session_state.sections)
+    # Clear cached slide components to force AI regeneration
+    if "slide_html" in section:
+        del section["slide_html"]
+    if "visual_html" in section:
+        del section["visual_html"]
+    if "custom_css" in section:
+        del section["custom_css"]
+    save_sections_json(sections)
 
-            # Render + save (chain to next section)
-            next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
-            build_and_save_slide(section, content, next_id, st.session_state.project_name)
+    try:
+        # Generate slide content via LLM, then render deterministically
+        _result, task = run_crew_with_retry(
+            make_visual_designer_agent,
+            lambda agent: make_visual_task(agent, section),
+        )
+        content = parse_content(str(task.output.raw))
+        if not content or ("slide_html" not in content and "visual_html" not in content):
+            raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
+        
+        # Save generated slide content back to the section dict and file
+        section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
+        section["custom_css"] = content.get("custom_css") or ""
+        save_sections_json(st.session_state.sections)
+
+        # Render + save (chain to next section)
+        next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
+        build_and_save_slide(section, content, next_id, st.session_state.project_name)
 
         st.session_state.video_status[sid] = "complete"
         st.session_state.progress_log.append(f"[Redo Video] {sid}: ✅ Slide regenerated")
