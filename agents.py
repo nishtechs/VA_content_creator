@@ -71,7 +71,8 @@ def make_visual_designer_agent() -> Agent:
     )
     svg_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "@mcp/svg-generator"]
+        args=["-y", "@genwave/svgmaker-mcp"],
+        env={"SVGMAKER_API_KEY": os.getenv("SVGMAKER_API_KEY", "")}
     )
     lottie_mcp = MCPServerStdio(
         command="npx",
