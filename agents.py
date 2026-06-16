@@ -8,6 +8,7 @@ agent instance across concurrent or retried crew runs causes:
 Always build a fresh agent per crew invocation.
 """
 
+import os
 from crewai import Agent
 from crewai.mcp import MCPServerStdio
 from crewai_tools import SerperDevTool
@@ -16,6 +17,11 @@ from config import nvidia_llm, nvidia_llm_creative
 
 def make_research_scriptwriter_agent() -> Agent:
     """Create a fresh Technical Researcher & Scriptwriter agent."""
+    exa_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "exa-mcp-server"],
+        env={"EXA_API_KEY": os.getenv("EXA_API_KEY", "")}
+    )
     return Agent(
         role="Technical Researcher & Scriptwriter",
         goal=(
@@ -30,6 +36,7 @@ def make_research_scriptwriter_agent() -> Agent:
         ),
         tools=[SerperDevTool()],
         llm=nvidia_llm,
+        mcps=[exa_mcp],
         verbose=False,
         allow_delegation=False,
     )
@@ -78,6 +85,15 @@ def make_visual_designer_agent() -> Agent:
         command="npx",
         args=["-y", "prettier-mcp"]
     )
+    exa_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "exa-mcp-server"],
+        env={"EXA_API_KEY": os.getenv("EXA_API_KEY", "")}
+    )
+    devdocs_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "@madhan-g-p/devdocs-mcp-server"]
+    )
     return Agent(
         role="Premium HTML Visual Designer",
         goal=(
@@ -95,7 +111,7 @@ def make_visual_designer_agent() -> Agent:
             "never a boring wall of text. Every word of visible text is in English."
         ),
         llm=nvidia_llm_creative,
-        mcps=[remotion_mcp, svg_mcp, lottie_mcp, stylelint_mcp, prettier_mcp],
+        mcps=[remotion_mcp, svg_mcp, lottie_mcp, stylelint_mcp, prettier_mcp, exa_mcp, devdocs_mcp],
         verbose=False,
         allow_delegation=False,
     )
