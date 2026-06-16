@@ -19,7 +19,7 @@ def make_research_scriptwriter_agent() -> Agent:
     """Create a fresh Technical Researcher & Scriptwriter agent."""
     exa_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "exa-mcp-server"],
+        args=["exa-mcp-server"],
         env={"EXA_API_KEY": os.getenv("EXA_API_KEY", "")}
     )
     return Agent(
@@ -67,33 +67,33 @@ def make_visual_designer_agent() -> Agent:
     """Create a fresh HTML Visual Designer agent."""
     remotion_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "@remotion/mcp@latest"]
+        args=["@remotion/mcp"]
     )
     svg_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "@genwave/svgmaker-mcp"],
+        args=["@genwave/svgmaker-mcp"],
         env={"SVGMAKER_API_KEY": os.getenv("SVGMAKER_API_KEY", "")}
     )
     lottie_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "@lottiefiles/creator-mcp@latest"]
+        args=["@lottiefiles/creator-mcp"]
     )
     stylelint_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "stylelint-mcp"]
+        args=["stylelint-mcp"]
     )
     prettier_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "@prettier/mcp"]
+        args=["@prettier/mcp"]
     )
     exa_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "exa-mcp-server"],
+        args=["exa-mcp-server"],
         env={"EXA_API_KEY": os.getenv("EXA_API_KEY", "")}
     )
     devdocs_mcp = MCPServerStdio(
         command="npx",
-        args=["-y", "@madhan-g-p/devdocs-mcp-server"]
+        args=["@madhan-g-p/devdocs-mcp-server"]
     )
     return Agent(
         role="Premium HTML Visual Designer",
