@@ -24,7 +24,7 @@ Command to Run: `venv\Scripts\streamlit.exe run app.py`
 - 🌓 **Dynamic Contrast Theme Support** — Dashboard layout adapts dynamically to Streamlit light and dark themes for clear text readability.
 - 📦 **Smart Chunker** — Intelligently parses long scripts into well-paced visual section chunks.
 - ♻️ **Smart Resume Support** — Fast resume skips already completed slide/audio files.
-- 🔌 **MCP Server Integration** — Integrates the `@remotion/mcp` Model Context Protocol server into the HTML Visual Designer agent for rich Remotion-based animation design context.
+- 🔌 **MCP Server Integration** — Integrates `@remotion/mcp` (Remotion docs), `@mcp/svg-generator` (SVG generation), `@lottiefiles/creator-mcp` (Lottie animations), `stylelint-mcp` (CSS linting), and `prettier-mcp` (code formatting) servers into the HTML Visual Designer agent to enhance presentation quality and code accuracy.
 
 ---
 
@@ -161,7 +161,7 @@ Open `http://localhost:8501/` in your browser to manage, preview, edit, and rege
 | Agent | Role | Tool Used |
 | :--- | :--- | :--- |
 | **Content Structurer** | Parses script chunks → clean JSON sections | — |
-| **Visual Designer** | Generates dark cyber-themed HTML slide page | `@remotion/mcp` (MCP Server via Stdio) |
+| **Visual Designer** | Generates dark cyber-themed HTML slide page | `@remotion/mcp`, `@mcp/svg-generator`, `@lottiefiles/creator-mcp`, `stylelint-mcp`, `prettier-mcp` (MCP Servers via Stdio) |
 | **Audio Generator** | Calls Sarvam TTS for Hindi MP3 narration | `SarvamTTSTool` |
 | **HTML Publisher** | Injects audio source & slide navigation chains | `HTMLSaverTool` |
 

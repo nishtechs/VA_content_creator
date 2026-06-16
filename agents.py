@@ -62,6 +62,22 @@ def make_visual_designer_agent() -> Agent:
         command="npx",
         args=["-y", "@remotion/mcp@latest"]
     )
+    svg_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "@mcp/svg-generator"]
+    )
+    lottie_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "@lottiefiles/creator-mcp@latest"]
+    )
+    stylelint_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "stylelint-mcp"]
+    )
+    prettier_mcp = MCPServerStdio(
+        command="npx",
+        args=["-y", "prettier-mcp"]
+    )
     return Agent(
         role="Premium HTML Visual Designer",
         goal=(
@@ -79,7 +95,7 @@ def make_visual_designer_agent() -> Agent:
             "never a boring wall of text. Every word of visible text is in English."
         ),
         llm=nvidia_llm_creative,
-        mcps=[remotion_mcp],
+        mcps=[remotion_mcp, svg_mcp, lottie_mcp, stylelint_mcp, prettier_mcp],
         verbose=False,
         allow_delegation=False,
     )
