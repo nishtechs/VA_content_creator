@@ -161,10 +161,13 @@ def make_visual_task(agent, section_data: dict) -> Task:
             "focused on concepts, theory, steps, or features using flow-steps or glass-boxes.\n"
         )
 
+    theme_name = section_data.get("theme", "Dark Cyber (Default)")
+
     return Task(
         description=(
             f"Produce PREMIUM structured content for one tutorial slide as a JSON object.\n\n"
             f"SLIDE TITLE: {section_data['title']}\n"
+            f"SLIDE THEME: {theme_name}\n"
             f"SLIDE CATEGORY: {section_data.get('category', 'concept')}\n"
             f"VISUAL: {section_data.get('visual') or section_data.get('visual_brief') or ''}\n"
             f"AUDIO TEXT (narrator will say this — your visual MUST match): {section_data.get('audio_text', 'N/A')}\n"
@@ -177,10 +180,10 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"AVAILABLE PRE-BUILT COMPONENTS (use these for consistent premium styling):\n\n"
             f"1. GLASS BOX: <div class=\"glass-box\"><h3>Title</h3><p>Content</p></div>\n"
             f"   - A frosted-glass panel with backdrop blur. Use for info sections.\n\n"
-            f"2. FLOW STEP: <div class=\"flow-step\"><div class=\"step-num\">1</div><div><strong>Step Title</strong><br><span style=\"color:#94a3b8\">Description</span></div></div>\n"
+            f"2. FLOW STEP: <div class=\"flow-step\"><div class=\"step-num\">1</div><div><strong>Step Title</strong><br><span style=\"color:var(--text-dim)\">Description</span></div></div>\n"
             f"   - A numbered step with left accent border. Stack multiples for processes.\n\n"
-            f"3. COMMAND BOX: <div class=\"command-box\">pip install langchain</div>\n"
-            f"   - Terminal-styled command box with auto $ prefix. Use for CLI commands.\n\n"
+            f"3. COMMAND BOX: <div class=\"command-box\">your-command-here</div>\n"
+            f"   - Terminal-styled command box with auto $ prefix. Use for CLI commands RELEVANT to the slide topic only.\n\n"
             f"4. HIGHLIGHT TEXT: <span class=\"highlight\">cyan text</span> or <span class=\"highlight-purple\">purple text</span>\n\n"
             f"5. ICONS: FontAwesome 6 — <i class=\"fas fa-robot\"></i>, <i class=\"fas fa-database\"></i>, etc.\n\n"
             f"═══════════════════════════════════════════\n"
@@ -212,9 +215,13 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"- NO <html>, <body>, <head>, <script> tags. Only inner elements.\n"
             f"- NO scrollable containers. No overflow:auto/scroll.\n"
             f"- NO <a href> anchor tags. Show URLs as <span class=\"highlight\">url</span>.\n"
-            f"- Use CSS grid or flexbox for layout. Use gap for spacing.\n"
-            f"- Use the dark palette: backgrounds rgba(15,23,42,0.65), borders rgba(0,212,255,0.15).\n"
-            f"- Add border-radius:14px, padding:16px to custom containers.\n\n"
+            f"- LAYOUT: DO NOT assume the parent container is a grid or flexbox. You MUST explicitly wrap your content in `<div style=\"display: grid; ...\">` or `<div style=\"display: flex; ...\">` if you want a grid/flex layout.\n"
+            f"- OVERFLOW: The slide height is FIXED at 100vh with overflow:hidden. NEVER stack 4-5 tall blocks vertically. If you have a lot of content, you MUST use a side-by-side flexbox or grid to spread it horizontally.\n"
+            f"- NEVER use height:100vh on any element inside slide_html. The slide height is already managed by the page body.\n"
+            f"- COLORS: Use CSS variables ONLY: var(--bg-card) for box backgrounds, var(--border) for borders, var(--text) for text, var(--text-dim) for secondary text, var(--cyan) or var(--purple) for accents. NEVER hardcode hex or rgba colors like #fff or rgba(15,23,42). ALWAYS use var().\n"
+            f"- Add border-radius:14px, padding:16px to custom containers.\n"
+            f"- CUSTOM_CSS: NEVER re-declare or override pre-built component classes (glass-box, flow-step, step-num, card, card-icon, card-title, card-body, code-wrap, badge, hero-title, subtitle, divider, command-box). These are already perfectly styled by the template. Only use custom_css for truly NEW classes you invent.\n"
+            f"- EXAMPLES: The component examples above show syntax patterns only. NEVER copy example content literally (like placeholder commands). Always use content relevant to the actual slide topic.\n\n"
             f"Return a JSON object with EXACTLY these fields (no markdown fences):\n"
             f"{{\n"
             f'  "slide_html": "<The HTML layout of the slide body. DO NOT include the slide badge, title, or subtitle here. Only include your custom visual layout components like glass-boxes, flow-steps, or grids.>",\n'
