@@ -58,6 +58,62 @@ def _hex_to_rgb(hex_color: str) -> str:
     if len(h) == 6:
         return f"{int(h[0:2], 16)}, {int(h[2:4], 16)}, {int(h[4:6], 16)}"
     return "0, 212, 255"
+THEMES = {
+    "Dark Cyber (Default)": {
+        "bg": "#050816",
+        "bg_card": "rgba(15, 23, 42, 0.65)",
+        "text": "#e2e8f0",
+        "text_dim": "#94a3b8",
+        "cyan": "#00d4ff",
+        "purple": "#a78bfa",
+        "border": "rgba(0, 212, 255, 0.15)",
+    },
+    "Light Elegant": {
+        "bg": "#f8fafc",
+        "bg_card": "rgba(255, 255, 255, 0.8)",
+        "text": "#0f172a",
+        "text_dim": "#475569",
+        "cyan": "#0284c7",
+        "purple": "#7c3aed",
+        "border": "rgba(2, 132, 199, 0.15)",
+    },
+    "Matrix Hacker": {
+        "bg": "#000000",
+        "bg_card": "rgba(0, 20, 0, 0.8)",
+        "text": "#22c55e",
+        "text_dim": "#16a34a",
+        "cyan": "#4ade80",
+        "purple": "#15803d",
+        "border": "rgba(34, 197, 94, 0.3)",
+    },
+    "Neon Sunset": {
+        "bg": "#1e1b4b",
+        "bg_card": "rgba(30, 27, 75, 0.7)",
+        "text": "#fdf4ff",
+        "text_dim": "#fbcfe8",
+        "cyan": "#f43f5e",
+        "purple": "#d946ef",
+        "border": "rgba(244, 63, 94, 0.25)",
+    },
+    "Ocean Breeze": {
+        "bg": "#083344",
+        "bg_card": "rgba(8, 51, 68, 0.7)",
+        "text": "#cffafe",
+        "text_dim": "#a5f3fc",
+        "cyan": "#22d3ee",
+        "purple": "#38bdf8",
+        "border": "rgba(34, 211, 238, 0.2)",
+    },
+    "Monochrome Minimalist": {
+        "bg": "#ffffff",
+        "bg_card": "rgba(240, 240, 240, 0.9)",
+        "text": "#111111",
+        "text_dim": "#555555",
+        "cyan": "#333333",
+        "purple": "#666666",
+        "border": "rgba(0, 0, 0, 0.1)",
+    }
+}
 
 
 def render_slide(
@@ -84,8 +140,36 @@ def render_slide(
     code_language = section.get("code_language") or content.get("code_language") or "text"
     has_code = bool(str(code).strip())
 
-    visual_html = content.get("visual_html") or content.get("slide_html") or ""
+    # Fallback to visual_html if slide_html isn't present
+    visual_html = content.get("slide_html") or content.get("visual_html") or ""
     custom_css = content.get("custom_css", "")
+
+    # Scrub any hardcoded Dark Cyber colors that older LLM prompts might have inserted
+    if visual_html:
+        visual_html = visual_html.replace("rgba(15,23,42,0.65)", "var(--bg-card)")
+        visual_html = visual_html.replace("rgba(15, 23, 42, 0.65)", "var(--bg-card)")
+        visual_html = visual_html.replace("rgba({_hex_to_rgb(t['cyan'])},0.15)", "var(--border)")
+        visual_html = visual_html.replace("rgba(0, 212, 255, 0.15)", "var(--border)")
+        visual_html = visual_html.replace("#94a3b8", "var(--text-dim)")
+        visual_html = visual_html.replace("#00d4ff", "var(--cyan)")
+        visual_html = visual_html.replace("#a78bfa", "var(--purple)")
+        
+    if custom_css:
+        custom_css = custom_css.replace("rgba(15,23,42,0.65)", "var(--bg-card)")
+        custom_css = custom_css.replace("rgba(15, 23, 42, 0.65)", "var(--bg-card)")
+        custom_css = custom_css.replace("rgba({_hex_to_rgb(t['cyan'])},0.15)", "var(--border)")
+        custom_css = custom_css.replace("rgba(0, 212, 255, 0.15)", "var(--border)")
+        custom_css = custom_css.replace("rgba(0,0,0,0.4)", "var(--bg-card)")
+        custom_css = custom_css.replace("rgba(0, 0, 0, 0.4)", "var(--bg-card)")
+        custom_css = custom_css.replace("rgba({_hex_to_rgb(t['cyan'])},0.3)", "var(--border)")
+        custom_css = custom_css.replace("rgba(0, 212, 255, 0.3)", "var(--border)")
+        custom_css = custom_css.replace("#94a3b8", "var(--text-dim)")
+        custom_css = custom_css.replace("#00d4ff", "var(--cyan)")
+        custom_css = custom_css.replace("#a78bfa", "var(--purple)")
+
+    # If the visual output is a FULL HTML document, just return it (after scrubbing)
+    if "<!DOCTYPE" in visual_html or "<html" in visual_html:
+        return visual_html
 
     # Clean markdown code blocks from custom html/css if present
     if visual_html:
@@ -98,6 +182,35 @@ def render_slide(
     if custom_css:
         custom_css = re.sub(r"^```(?:css)?|```$", "", custom_css.strip(), flags=re.MULTILINE).strip()
 
+    # ── Sanitize visual_html: remove height:100vh from inline styles ──
+    # The LLM sometimes wraps content in <div style="height: 100vh; ...">
+    # which overflows past the body padding, pushing bottom content off-screen.
+    if visual_html:
+        visual_html = re.sub(r'height\s*:\s*100vh\s*;?', '', visual_html)
+
+    # ── Sanitize custom_css: strip overrides of protected base-template selectors ──
+    # The LLM often re-declares .glass-box, .flow-step, .step-num etc. with
+    # inferior styling that destroys the premium gradients, backdrop-blur, and
+    # animations defined in the base template.  Only allow truly NEW classes.
+    if custom_css:
+        _PROTECTED_SELECTORS = (
+            r'\.glass-box', r'\.flow-step', r'\.step-num',
+            r'\.card\b', r'\.card-icon', r'\.card-title', r'\.card-body',
+            r'\.code-wrap', r'\.code-body', r'\.code-head',
+            r'\.badge', r'\.hero-title', r'\.subtitle', r'\.divider',
+            r'\.command-box', r'\.stage', r'\.orb',
+        )
+        for sel in _PROTECTED_SELECTORS:
+            # Match the selector (possibly with qualifiers like .flow-step .step-num)
+            # followed by { ... }  and strip the entire rule block
+            custom_css = re.sub(
+                rf'(?:^|\s){sel}(?:\s+\.[\w-]+)?\s*\{{[^}}]*\}}',
+                '', custom_css, flags=re.DOTALL
+            )
+        custom_css = custom_css.strip()
+
+    theme_name = section.get("theme", "Dark Cyber (Default)")
+
     # Category-specific accent color for variety
     category_accents = {
         "intro": "#00d4ff",
@@ -108,6 +221,8 @@ def render_slide(
         "summary": "#06b6d4",
     }
     accent = category_accents.get(category, "#00d4ff")
+
+    t = THEMES.get(theme_name, THEMES["Dark Cyber (Default)"])
 
     # Build the main body region
     if visual_html:
@@ -173,7 +288,7 @@ def render_slide(
 <title>{headline}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <style>
@@ -185,15 +300,15 @@ def render_slide(
   * {{ -ms-overflow-style:none !important; scrollbar-width:none !important; }}
 
   :root {{
-    --cyan: #00d4ff;
-    --purple: #a78bfa;
+    --cyan: {t["cyan"]};
+    --purple: {t["purple"]};
     --accent: {accent};
-    --bg: #050816;
-    --bg-card: rgba(15, 23, 42, 0.65);
-    --border: rgba(0, 212, 255, 0.15);
-    --text: #e2e8f0;
-    --text-dim: #94a3b8;
-    --glow-cyan: 0 0 30px rgba(0, 212, 255, 0.15);
+    --bg: {t["bg"]};
+    --bg-card: {t["bg_card"]};
+    --border: {t["border"]};
+    --text: {t["text"]};
+    --text-dim: {t["text_dim"]};
+    --glow-cyan: 0 0 30px {t["border"]};
     --glow-accent: 0 0 30px rgba({_hex_to_rgb(accent)}, 0.2);
   }}
 
@@ -203,7 +318,7 @@ def render_slide(
   }}
 
   body {{
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Inter', 'Noto Sans Devanagari', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg); color: var(--text);
     min-height: 100vh; position: relative;
     display: flex; flex-direction: column; justify-content: center;
@@ -228,8 +343,8 @@ def render_slide(
   @keyframes pulse {{ 0%,100%{{opacity:.3}} 50%{{opacity:.8}} }}
   @keyframes scanline {{ 0%{{top:-10%}} 100%{{top:110%}} }}
   @keyframes shimmer {{ 0%{{background-position:-200% 0}} 100%{{background-position:200% 0}} }}
-  @keyframes glowPulse {{ 0%,100%{{box-shadow:0 0 8px rgba(0,212,255,.1)}} 50%{{box-shadow:0 0 24px rgba(0,212,255,.25)}} }}
-  @keyframes borderGlow {{ 0%,100%{{border-color:rgba(0,212,255,.15)}} 50%{{border-color:rgba(0,212,255,.35)}} }}
+  @keyframes glowPulse {{ 0%,100%{{box-shadow:0 0 8px rgba({_hex_to_rgb(t['cyan'])},.1)}} 50%{{box-shadow:0 0 24px rgba({_hex_to_rgb(t['cyan'])},.25)}} }}
+  @keyframes borderGlow {{ 0%,100%{{border-color:rgba({_hex_to_rgb(t['cyan'])},.15)}} 50%{{border-color:rgba({_hex_to_rgb(t['cyan'])},.35)}} }}
   @keyframes breathe {{ 0%,100%{{transform:scale(1)}} 50%{{transform:scale(1.02)}} }}
   @keyframes particleDrift {{ 0%{{transform:translateY(100vh) scale(0); opacity:0}} 10%{{opacity:1}} 90%{{opacity:1}} 100%{{transform:translateY(-10vh) scale(1); opacity:0}} }}
   @keyframes slideInLeft {{ from {{opacity:0; transform:translateX(-30px)}} to {{opacity:1; transform:translateX(0)}} }}
@@ -263,8 +378,8 @@ def render_slide(
   .grid {{
     position:fixed; inset:0; z-index:0; opacity:.4;
     background-image:
-      linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
+      linear-gradient(rgba({_hex_to_rgb(t['cyan'])},.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba({_hex_to_rgb(t['cyan'])},.03) 1px, transparent 1px);
     background-size:60px 60px;
     animation:breathe 10s ease-in-out infinite;
   }}
@@ -272,7 +387,7 @@ def render_slide(
   /* Animated scan line */
   .scanline {{
     position:fixed; left:0; width:100%; height:2px; z-index:0;
-    background:linear-gradient(90deg, transparent, rgba(0,212,255,.1), rgba(167,139,250,.06), transparent);
+    background:linear-gradient(90deg, transparent, rgba({_hex_to_rgb(t['cyan'])},.1), rgba({_hex_to_rgb(t['purple'])},.06), transparent);
     animation:scanline 6s linear infinite;
   }}
 
@@ -298,7 +413,7 @@ def render_slide(
   .stage {{
     position:relative; z-index:1;
     max-width:1200px; margin:0 auto; width:100%;
-    overflow:hidden;
+    overflow:visible;
   }}
 
   /* Badge — GSAP animated */
@@ -322,9 +437,10 @@ def render_slide(
 
   /* Hero Title — GSAP animated */
   .hero-title {{
+    font-family:'Noto Sans Devanagari', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size:clamp(1.5rem,3.5vw,2.8rem); font-weight:800;
-    line-height:1.1; margin-bottom:12px;
-    background:linear-gradient(90deg, #fff 0%, var(--cyan) 40%, #fff 60%, var(--purple) 100%);
+    line-height:1.35; margin-bottom:12px; padding-top:0.1em;
+    background:linear-gradient(90deg, var(--text) 0%, var(--cyan) 40%, var(--text) 60%, var(--purple) 100%);
     background-size:200% 100%;
     -webkit-background-clip:text; background-clip:text;
     -webkit-text-fill-color:transparent;
@@ -370,7 +486,7 @@ def render_slide(
   .card::before {{
     content:''; position:absolute; inset:-1px;
     border-radius:17px; padding:1px;
-    background:linear-gradient(135deg, rgba(0,212,255,.2), transparent 50%, rgba(167,139,250,.2));
+    background:linear-gradient(135deg, rgba({_hex_to_rgb(t['cyan'])},.2), transparent 50%, rgba({_hex_to_rgb(t['purple'])},.2));
     -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite:xor; mask-composite:exclude;
@@ -380,7 +496,7 @@ def render_slide(
   .card:hover, .card:focus {{
     transform:translateY(-6px);
     box-shadow:var(--glow-cyan);
-    border-color:rgba(0,212,255,.3);
+    border-color:rgba({_hex_to_rgb(t['cyan'])},.3);
     outline:none;
   }}
   .card-glow {{
@@ -394,8 +510,8 @@ def render_slide(
   .card-icon {{
     width:48px; height:48px; border-radius:14px;
     display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(135deg, rgba(0,212,255,.15), rgba(167,139,250,.1));
-    border:1px solid rgba(0,212,255,.2);
+    background:linear-gradient(135deg, rgba({_hex_to_rgb(t['cyan'])},.15), rgba({_hex_to_rgb(t['purple'])},.1));
+    border:1px solid rgba({_hex_to_rgb(t['cyan'])},.2);
     margin-bottom:14px; font-size:1.1rem; color:var(--cyan);
     animation:glowPulse 3s ease-in-out infinite, borderGlow 4s ease-in-out infinite;
   }}
@@ -404,7 +520,7 @@ def render_slide(
   }}
   .card-title {{
     font-size:clamp(.88rem,1.1vw,1.05rem);
-    font-weight:700; margin-bottom:8px; color:#fff;
+    font-weight:700; margin-bottom:8px; color:var(--text);
   }}
   .card-body {{
     font-size:clamp(.78rem,1vw,.88rem); color:var(--text-dim);
@@ -415,8 +531,8 @@ def render_slide(
      PREMIUM CODE BLOCK
   ═══════════════════════════════════════════════════════ */
   .code-wrap {{
-    background:rgba(10, 15, 36, 0.9);
-    border:1px solid rgba(0,212,255,.2);
+    background:rgba({_hex_to_rgb(t['bg'])}, 0.9);
+    border:1px solid rgba({_hex_to_rgb(t['cyan'])},.2);
     border-radius:16px; overflow:hidden;
     box-shadow:0 8px 32px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.03);
     backdrop-filter:blur(12px);
@@ -425,7 +541,7 @@ def render_slide(
   .code-head {{
     display:flex; align-items:center; padding:12px 18px;
     background:rgba(255,255,255,.02);
-    border-bottom:1px solid rgba(0,212,255,.1);
+    border-bottom:1px solid rgba({_hex_to_rgb(t['cyan'])},.1);
   }}
   .code-dots {{ display:flex; gap:7px; }}
   .dot {{ width:12px; height:12px; border-radius:50%; }}
@@ -441,10 +557,10 @@ def render_slide(
   .code-body {{
     margin:0; padding:clamp(14px,2vw,22px); padding-left:clamp(20px,2.5vw,32px);
     font-family:'JetBrains Mono',monospace;
-    font-size:clamp(.7rem,.9vw,.88rem); line-height:1.7; color:#c9d8f0;
+    font-size:clamp(.7rem,.9vw,.88rem); line-height:1.7; color:var(--cyan);
     white-space:pre-wrap; word-wrap:break-word; word-break:break-all;
     overflow-y:auto; max-height:clamp(250px, 55vh, 600px); min-height:40px;
-    border-left:2px solid rgba(0,212,255,.1);
+    border-left:2px solid rgba({_hex_to_rgb(t['cyan'])},.1);
   }}
 
   /* ═══════════════════════════════════════════════════════
@@ -464,7 +580,7 @@ def render_slide(
     position:fixed; top:0; left:0; height:3px; z-index:10;
     background:linear-gradient(90deg, var(--cyan), var(--accent), var(--purple));
     animation:progressGrow linear forwards;
-    box-shadow:0 0 12px rgba(0,212,255,.4);
+    box-shadow:0 0 12px rgba({_hex_to_rgb(t['cyan'])},.4);
   }}
 
   /* ═══════════════════════════════════════════════════════
@@ -519,7 +635,7 @@ def render_slide(
   }}
   .glass-box h2, .glass-box h3 {{
     font-size:clamp(.9rem,1.2vw,1.1rem); font-weight:700;
-    margin-bottom:10px; color:#fff;
+    margin-bottom:10px; color:var(--text);
   }}
   .glass-box p, .glass-box li {{
     font-size:clamp(.78rem,1vw,.88rem); color:var(--text-dim);
@@ -532,26 +648,26 @@ def render_slide(
   .flow-step {{
     display:flex; align-items:center; gap:12px;
     padding:12px 16px; margin-bottom:8px;
-    background:rgba(0,212,255,.04); border-radius:12px;
+    background:rgba({_hex_to_rgb(t['cyan'])},.04); border-radius:12px;
     border-left:3px solid var(--cyan);
     transition:all .3s ease;
     opacity:0; transform:translateX(-30px);
   }}
   .flow-step:hover {{
-    background:rgba(0,212,255,.08);
+    background:rgba({_hex_to_rgb(t['cyan'])},.08);
     transform:translateX(6px);
     border-left-color:var(--accent);
   }}
   .flow-step .step-num {{
     min-width:32px; height:32px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(135deg, var(--cyan), #0090c0);
-    color:#02121a; font-weight:800; font-size:.8rem;
+    background:linear-gradient(135deg, var(--cyan), var(--purple));
+    color:var(--bg); font-weight:800; font-size:.8rem;
     animation:glowPulse 3s ease-in-out infinite;
   }}
 
   .command-box {{
-    background:rgba(10,15,36,.9); border:1px solid rgba(0,212,255,.15);
+    background:rgba({_hex_to_rgb(t['bg'])},.9); border:1px solid rgba({_hex_to_rgb(t['cyan'])},.15);
     border-radius:10px; padding:12px 18px;
     font-family:'JetBrains Mono',monospace; font-size:clamp(.72rem,.9vw,.85rem);
     color:#10b981; margin:8px 0;
@@ -684,7 +800,7 @@ def render_slide(
 
     // Card icons — gentle floating pulse
     gsap.to('.card-icon', {{
-      boxShadow: '0 0 20px rgba(0,212,255,0.25)',
+      boxShadow: '0 0 20px rgba({_hex_to_rgb(t['cyan'])},0.25)',
       duration: 1.5, repeat: -1, yoyo: true, ease: 'sine.inOut',
       stagger: 0.3
     }});
@@ -695,21 +811,21 @@ def render_slide(
 
     // Flow step numbers — glow pulse
     gsap.to('.step-num', {{
-      boxShadow: '0 0 16px rgba(0,212,255,0.3)',
+      boxShadow: '0 0 16px rgba({_hex_to_rgb(t['cyan'])},0.3)',
       duration: 2, repeat: -1, yoyo: true, ease: 'sine.inOut',
       stagger: 0.4
     }});
 
     // Code block border glow
     gsap.to('.code-wrap', {{
-      borderColor: 'rgba(0,212,255,0.35)',
+      borderColor: 'rgba({_hex_to_rgb(t['cyan'])},0.35)',
       duration: 2.5, repeat: -1, yoyo: true, ease: 'sine.inOut',
       delay: 2
     }});
 
     // Glass-box subtle hover effect (continuous)
     gsap.to('.glass-box', {{
-      borderColor: 'rgba(0,212,255,0.25)',
+      borderColor: 'rgba({_hex_to_rgb(t['cyan'])},0.25)',
       duration: 3, repeat: -1, yoyo: true, ease: 'sine.inOut',
       stagger: 0.5
     }});

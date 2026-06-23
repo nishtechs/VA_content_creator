@@ -8,9 +8,7 @@ import sys
 import json
 import time
 import logging
-import threading
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import streamlit as st
@@ -27,6 +25,8 @@ from project import (
     html_path,
     list_projects,
     slugify,
+    get_active_theme,
+    set_active_theme,
 )
 from agents import make_chunk_structurer_agent, make_visual_designer_agent, make_research_scriptwriter_agent
 from tasks import make_chunking_task, make_visual_task, make_research_script_task
@@ -197,7 +197,12 @@ def render_project_gate():
 
 # ─── Project Gate ────────────────────────────────────────────────────────────
 if "project_name" not in st.session_state:
-    st.session_state.project_name = None
+    # Recover from process-global state if page is refreshed
+    recovered_project = get_active_project()
+    if recovered_project:
+        st.session_state.project_name = recovered_project
+    else:
+        st.session_state.project_name = None
 
 if not st.session_state.project_name:
     render_project_gate()
@@ -288,15 +293,33 @@ def structure_single_chunk(chunk: dict, section_id: str) -> dict[str, Any]:
 
 
 def process_single_section(section: dict, next_section_id: str) -> tuple[str, bool, str]:
-    """Process a single section (visual + audio in PARALLEL, then save). Returns (section_id, success, message)."""
+    """Process a single section (visual + audio sequentially). Returns (section_id, success, message)."""
     sid = section["section_id"]
-    proj_name = st.session_state.project_name  # capture before threads (session_state not thread-safe)
+    proj_name = st.session_state.project_name
+    theme = st.session_state.get("slide_theme", "Dark Cyber (Default)")
+    section["theme"] = theme
 
-    def gen_video() -> str:
-        """Generate slide content via LLM if not present, then render deterministically (thread-safe)."""
-        if "slide_html" in section and section["slide_html"]:
-            build_and_save_slide(section, section, next_section_id, proj_name)
-            return "ok"
+    # ── Clear any stale/cached slide content so the LLM always regenerates fresh ──
+    # This is critical: if the user's JSON contains leftover slide_html from a
+    # previous run, the old code would skip LLM generation entirely and render
+    # stale content.  The "Redo Video" path already does this (lines 417-422),
+    # which is why redo always works correctly.
+    for key in ("slide_html", "visual_html", "custom_css"):
+        section.pop(key, None)
+
+    # Ensure visual_brief is populated from visual for better LLM context
+    if not section.get("visual_brief") and section.get("visual"):
+        section["visual_brief"] = section["visual"]
+
+    video_ok = False
+    audio_ok = False
+    errors: list[str] = []
+
+    # ── Generate video (slide) — synchronous ──
+    # Run sequentially instead of in threads to avoid MCP server resource
+    # contention.  The visual designer agent spawns 7 Node.js MCP child
+    # processes; running those concurrently with TTS caused unreliable results.
+    try:
         _result, task = run_crew_with_retry(
             make_visual_designer_agent,
             lambda agent: make_visual_task(agent, section),
@@ -304,57 +327,35 @@ def process_single_section(section: dict, next_section_id: str) -> tuple[str, bo
         content = parse_content(str(task.output.raw))
         if not content or ("slide_html" not in content and "visual_html" not in content):
             raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
-        
+
         # Save generated slide content back to the section dict
         section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
         section["custom_css"] = content.get("custom_css") or ""
-        
+
         build_and_save_slide(section, content, next_section_id, proj_name)
-        return "ok"
-
-    def gen_audio() -> str:
-        """Generate audio via Sarvam TTS (no session_state access — thread-safe)."""
-        return generate_audio_direct(text=section["audio_text"], filename=sid)
-
-    video_ok = False
-    audio_ok = False
-    errors: list[str] = []
-
-    try:
-        # Run video (LLM) and audio (TTS) concurrently
-        with ThreadPoolExecutor(max_workers=2) as ex:
-            f_video = ex.submit(gen_video)
-            f_audio = ex.submit(gen_audio)
-
-            # Collect video result
-            try:
-                f_video.result()
-                video_ok = True
-            except Exception as e:
-                errors.append(f"Video failed: {e}")
-
-            # Collect audio result
-            try:
-                audio_result = f_audio.result()
-                if "Error" in audio_result:
-                    errors.append(f"Audio failed: {audio_result}")
-                else:
-                    audio_ok = True
-            except Exception as e:
-                errors.append(f"Audio failed: {e}")
-
-        # Update session state in the MAIN thread (thread-safe)
-        st.session_state.video_status[sid] = "complete" if video_ok else "failed"
-        st.session_state.audio_status[sid] = "complete" if audio_ok else "failed"
-
-        if video_ok and audio_ok:
-            mark_completed(sid)
-            return sid, True, "✅ Complete"
-
-        return sid, False, "❌ " + " | ".join(errors)
-
+        video_ok = True
     except Exception as e:
-        return sid, False, f"❌ Error: {str(e)}"
+        errors.append(f"Video failed: {e}")
+
+    # ── Generate audio — synchronous ──
+    try:
+        audio_result = generate_audio_direct(text=section["audio_text"], filename=sid)
+        if "Error" in audio_result:
+            errors.append(f"Audio failed: {audio_result}")
+        else:
+            audio_ok = True
+    except Exception as e:
+        errors.append(f"Audio failed: {e}")
+
+    # Update session state
+    st.session_state.video_status[sid] = "complete" if video_ok else "failed"
+    st.session_state.audio_status[sid] = "complete" if audio_ok else "failed"
+
+    if video_ok and audio_ok:
+        mark_completed(sid)
+        return sid, True, "✅ Complete"
+
+    return sid, False, "❌ " + " | ".join(errors)
 
 
 def regenerate_audio_only(section_idx: int) -> tuple[bool, str]:
@@ -397,34 +398,40 @@ def regenerate_video_only(section_idx: int) -> tuple[bool, str]:
 
     section = sections[section_idx]
     sid = section["section_id"]
+    section["theme"] = st.session_state.get("slide_theme", "Dark Cyber (Default)")
 
     # Delete existing HTML file
     h_path = html_path(sid)
     if os.path.exists(h_path):
         os.remove(h_path)
 
-    try:
-        if "slide_html" in section and section["slide_html"]:
-            next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
-            build_and_save_slide(section, section, next_id, st.session_state.project_name)
-        else:
-            # Generate slide content via LLM, then render deterministically
-            _result, task = run_crew_with_retry(
-                make_visual_designer_agent,
-                lambda agent: make_visual_task(agent, section),
-            )
-            content = parse_content(str(task.output.raw))
-            if not content or ("slide_html" not in content and "visual_html" not in content):
-                raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
-            
-            # Save generated slide content back to the section dict and file
-            section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
-            section["custom_css"] = content.get("custom_css") or ""
-            save_sections_json(st.session_state.sections)
+    # Clear cached slide components to force AI regeneration
+    if "slide_html" in section:
+        del section["slide_html"]
+    if "visual_html" in section:
+        del section["visual_html"]
+    if "custom_css" in section:
+        del section["custom_css"]
+    save_sections_json(sections)
 
-            # Render + save (chain to next section)
-            next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
-            build_and_save_slide(section, content, next_id, st.session_state.project_name)
+    try:
+        # Generate slide content via LLM, then render deterministically
+        _result, task = run_crew_with_retry(
+            make_visual_designer_agent,
+            lambda agent: make_visual_task(agent, section),
+        )
+        content = parse_content(str(task.output.raw))
+        if not content or ("slide_html" not in content and "visual_html" not in content):
+            raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
+        
+        # Save generated slide content back to the section dict and file
+        section["slide_html"] = content.get("slide_html") or content.get("visual_html") or ""
+        section["custom_css"] = content.get("custom_css") or ""
+        save_sections_json(st.session_state.sections)
+
+        # Render + save (chain to next section)
+        next_id = sections[section_idx + 1]["section_id"] if section_idx + 1 < len(sections) else ""
+        build_and_save_slide(section, content, next_id, st.session_state.project_name)
 
         st.session_state.video_status[sid] = "complete"
         st.session_state.progress_log.append(f"[Redo Video] {sid}: ✅ Slide regenerated")
@@ -558,6 +565,24 @@ with st.sidebar:
 
     st.divider()
     st.markdown("### 🎛️ Pipeline Options")
+    
+    # Recover theme from global state if missing
+    if "slide_theme" not in st.session_state:
+        st.session_state.slide_theme = get_active_theme()
+
+    theme_options = ["Dark Cyber (Default)", "Light Elegant", "Matrix Hacker", "Neon Sunset", "Ocean Breeze", "Monochrome Minimalist"]
+    try:
+        current_index = theme_options.index(st.session_state.slide_theme)
+    except ValueError:
+        current_index = 0
+
+    slide_theme = st.selectbox(
+        "Slide Theme",
+        theme_options,
+        index=current_index
+    )
+    st.session_state.slide_theme = slide_theme
+    set_active_theme(slide_theme)
     parallel_count = st.slider("Parallel Sections", 1, 6, MAX_PARALLEL_SECTIONS)
 
     st.divider()
@@ -736,13 +761,15 @@ if run_full and script_text:
                         st.session_state.section_status[sid] = "failed"
 
                     st.session_state.progress_log.append(f"{sid}: {msg}")
+                    # Save after each section so enriched slide_html/custom_css persist
+                    save_sections_json(st.session_state.sections)
                     completed_count += 1
                     progress_bar2.progress(completed_count / len(sections))
 
                 # Save the updated sections list containing generated slide_html/custom_css
                 save_sections_json(st.session_state.sections)
                 # Generate master index
-                generate_master_index(sections, st.session_state.project_name)
+                generate_master_index(sections, st.session_state.project_name, st.session_state.get("slide_theme", "Dark Cyber (Default)"))
                 status.update(label=f"🎨 Generated {len(sections)} slides", state="complete")
 
         st.success("🎉 Pipeline complete! Open the slides using the button above. "
@@ -785,11 +812,13 @@ elif run_pending and total_sections > 0:
                         st.session_state.section_status[sid] = "failed"
 
                     st.session_state.progress_log.append(f"{sid}: {msg}")
+                    # Save after each section so enriched slide_html/custom_css persist
+                    save_sections_json(st.session_state.sections)
                     progress_bar.progress((i + 1) / len(pending_sections))
 
                 # Save the updated sections list containing generated slide_html/custom_css
                 save_sections_json(st.session_state.sections)
-                generate_master_index(sections, st.session_state.project_name)
+                generate_master_index(sections, st.session_state.project_name, st.session_state.get("slide_theme", "Dark Cyber (Default)"))
                 status.update(label="▶️ Pending sections processed", state="complete")
     except Exception as e:
         logger.error(f"Run-pending error: {e}")
@@ -863,7 +892,7 @@ if st.session_state.sections:
                              use_container_width=True):
                     with st.spinner(f"Regenerating slide for {sid}..."):
                         regenerate_video_only(idx)
-                        generate_master_index(st.session_state.sections, st.session_state.project_name)
+                        generate_master_index(st.session_state.sections, st.session_state.project_name, st.session_state.get("slide_theme", "Dark Cyber (Default)"))
                     st.rerun()
 
             # ── Edit Section Content ──
@@ -906,6 +935,7 @@ if st.session_state.sections:
                 with btn_save_col1:
                     if st.button("💾 Save & Regenerate (via AI)", key=f"save_ai_{sid}", use_container_width=True, disabled=st.session_state.pipeline_running):
                         # 1. Update sections data
+                        section["theme"] = st.session_state.get("slide_theme", "Dark Cyber (Default)")
                         section["title"] = edit_title
                         section["category"] = edit_category
                         section["audio_text"] = edit_audio_text
@@ -929,7 +959,7 @@ if st.session_state.sections:
                         with st.spinner("Regenerating slide and audio via AI..."):
                             regenerate_audio_only(idx)
                             regenerate_video_only(idx)
-                            generate_master_index(st.session_state.sections, st.session_state.project_name)
+                            generate_master_index(st.session_state.sections, st.session_state.project_name, st.session_state.get("slide_theme", "Dark Cyber (Default)"))
                         
                         st.success(f"✓ Section {sid} successfully regenerated!")
                         st.rerun()
@@ -937,6 +967,7 @@ if st.session_state.sections:
                 with btn_save_col2:
                     if st.button("⚡ Save & Re-render (Instant)", key=f"save_instant_{sid}", use_container_width=True, disabled=st.session_state.pipeline_running):
                         # 1. Update sections data
+                        section["theme"] = st.session_state.get("slide_theme", "Dark Cyber (Default)")
                         section["title"] = edit_title
                         section["category"] = edit_category
                         section["audio_text"] = edit_audio_text
@@ -963,7 +994,7 @@ if st.session_state.sections:
                             st.session_state.video_status[sid] = "complete"
                             _refresh_combined_status(sid)
                             
-                            generate_master_index(st.session_state.sections, st.session_state.project_name)
+                            generate_master_index(st.session_state.sections, st.session_state.project_name, st.session_state.get("slide_theme", "Dark Cyber (Default)"))
                         
                         st.success(f"✓ Section {sid} updated instantly!")
                         st.rerun()

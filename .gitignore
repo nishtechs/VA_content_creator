@@ -100,3 +100,4 @@ dmypy.json
 output/
 generated_html/
 old_output/
+node_modules/

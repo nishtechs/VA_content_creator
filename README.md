@@ -1,4 +1,4 @@
-# 🎬 VA Creator — AI-Powered Tutorial Video Generator
+# 🎬 VA Creator — AI-Powered Tutorial Video Generator  `v1.3.0`
 
 Command to Run: `venv\Scripts\streamlit.exe run app.py`
 
@@ -18,12 +18,15 @@ Command to Run: `venv\Scripts\streamlit.exe run app.py`
 - 🧠 **NVIDIA NIM LLM Powered** — Uses Llama 3.3 70B by default via OpenAI-compatible endpoints.
 - 🎙️ **Hindi/Hinglish TTS** — High-quality, natural regional voice narration via Sarvam AI (`bulbul:v3`).
 - 🎨 **Premium Cyber-Themed Slides** — Clean glassmorphism, animated gradients, and responsive layouts powered by CSS3 and GSAP.
+- 🛡️ **CSS Sanitization Engine** — Automatically strips LLM overrides of base-template classes to preserve premium styling consistency.
+- 🔤 **Devanagari Font Support** — Noto Sans Devanagari for proper Hindi title and content rendering without clipping.
 - 📜 **Auto-Scrolling Code Typewriter** — Large code blocks automatically scroll down to follow the typewriter typing animation character-by-character, preventing cutoff.
 - ✏️ **Section Script & Style Editor** — Expandable edit panel for every section to directly modify titles, audio script, visual descriptions, code snippets, or custom HTML layouts.
 - ⚡ **AI Regeneration vs. Instant Re-Rendering** — Redo slides/audio using the CrewAI LLM designer, or instantly compile direct HTML/CSS code tweaks.
 - 🌓 **Dynamic Contrast Theme Support** — Dashboard layout adapts dynamically to Streamlit light and dark themes for clear text readability.
 - 📦 **Smart Chunker** — Intelligently parses long scripts into well-paced visual section chunks.
-- ♻️ **Smart Resume Support** — Fast resume skips already completed slide/audio files.
+- ♻️ **Smart Resume Support** — Fast resume skips already completed slide/audio files, with incremental saves after each section.
+- 🔌 **MCP Server Integration** — Integrates `@remotion/mcp` (Remotion docs), `@genwave/svgmaker-mcp` (SVG generation), `@lottiefiles/creator-mcp` (Lottie animations), `stylelint-mcp` (CSS linting), `@prettier/mcp` (code formatting), `exa-mcp-server` (web search), and `@madhan-g-p/devdocs-mcp-server` (documentation lookup) into the agents to enhance research depth, slide quality, and code accuracy.
 
 ---
 
@@ -41,8 +44,10 @@ VA_creator/
 ├── agents.py               # CrewAI agent definitions
 ├── tasks.py                # Task templates per agent
 ├── tools.py                # Sarvam TTS + HTML saver tools
+├── slide_template.py       # Deterministic slide renderer + CSS sanitizer
 ├── chunker.py              # Pre-splits markdown into chunks
 ├── utils.py                # JSON, progress, helper utilities
+├── CHANGELOG.md            # Version history
 └── output/                 # Generated artifacts
     ├── sections.json
     ├── progress.json
@@ -136,18 +141,20 @@ Open `http://localhost:8501/` in your browser to manage, preview, edit, and rege
    └────────┬───────────────┘
             ▼
    ┌─────────────────────────────────────────┐
-   │   For each section (in parallel):       │
-   │   ┌────────────────┐ ┌────────────────┐ │
-   │   │ Visual Designer│ │ Audio Generator│ │
-   │   │ Agent → HTML   │ │ Agent → MP3    │ │
-   │   └───────┬────────┘ └───────┬────────┘ │
-   │           └──────┬───────────┘          │
-   │                  ▼                      │
-   │         ┌────────────────┐              │
-   │         │ HTML Publisher │              │
-   │         │ Saves + chains │              │
-   │         └────────────────┘              │
-   │                                         │
+   │   For each section (sequential):       │
+   │   ┌────────────────┐                   │
+   │   │ Visual Designer│ → HTML slide      │
+   │   │ (CSS sanitized)│                   │
+   │   └───────┬────────┘                   │
+   │           ▼                            │
+   │   ┌────────────────┐                   │
+   │   │ Audio Generator│ → MP3 narration   │
+   │   └───────┬────────┘                   │
+   │           ▼                            │
+   │   ┌────────────────┐                   │
+   │   │ HTML Publisher │ Saves + chains    │
+   │   └────────────────┘                   │
+   │       💾 sections.json saved           │
    └─────────────────────────────────────────┘
             ▼
    ┌──────────────────┐
@@ -160,7 +167,7 @@ Open `http://localhost:8501/` in your browser to manage, preview, edit, and rege
 | Agent | Role | Tool Used |
 | :--- | :--- | :--- |
 | **Content Structurer** | Parses script chunks → clean JSON sections | — |
-| **Visual Designer** | Generates dark cyber-themed HTML slide page | — |
+| **Visual Designer** | Generates dark cyber-themed HTML slide page | `@remotion/mcp`, `@genwave/svgmaker-mcp`, `@lottiefiles/creator-mcp`, `stylelint-mcp`, `@prettier/mcp`, `exa-mcp-server`, `@madhan-g-p/devdocs-mcp-server` (MCP Servers via Stdio) |
 | **Audio Generator** | Calls Sarvam TTS for Hindi MP3 narration | `SarvamTTSTool` |
 | **HTML Publisher** | Injects audio source & slide navigation chains | `HTMLSaverTool` |
 
@@ -211,6 +218,12 @@ You can modify sections inside the Streamlit Web UI:
 1. Open the **✏️ Edit Section Content** expander under any section.
 2. Make manual corrections to titles, scripts, visual details, or code.
 3. Click **💾 Save & Regenerate (via AI)** to have CrewAI rebuild it, or **⚡ Save & Re-render (Instant)** to update text/code styling changes instantly!
+
+---
+
+## 📋 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
 ---
 
