@@ -1,6 +1,6 @@
 {
   "name": "va_creator",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "Command to Run: `venv\\Scripts\\streamlit.exe run app.py`",
   "main": "index.js",
   "scripts": {
