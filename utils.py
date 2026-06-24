@@ -16,6 +16,7 @@ from project import (
     audio_path,
     html_path,
 )
+from slide_template import THEMES
 
 logger = logging.getLogger("va_creator.utils")
 
@@ -157,9 +158,19 @@ def has_chunk_changed(section_id: str, chunk_hash: str) -> bool:
     return stored_hash != chunk_hash
 
 
-def generate_master_index(sections: list[dict[str, Any]], project_name: str = "") -> str:
+def generate_master_index(sections: list[dict[str, Any]], project_name: str = "", theme_name: str = "Dark Cyber (Default)") -> str:
     """Creates an index.html launcher page with accessibility and keyboard nav."""
     display_name = project_name or "Tutorial Slides"
+    t = THEMES.get(theme_name, THEMES["Dark Cyber (Default)"])
+    
+    # We will use variables for the UI
+    bg_color = t["bg"]
+    card_bg = t["bg_card"]
+    text_color = t["text"]
+    text_dim = t["text_dim"]
+    cyan = t["cyan"]
+    purple = t["purple"]
+    border_color = t["border"]
     cards_html = ""
     for i, sec in enumerate(sections):
         cards_html += f"""
@@ -181,40 +192,40 @@ def generate_master_index(sections: list[dict[str, Any]], project_name: str = ""
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 * {{ margin:0; padding:0; box-sizing:border-box; }}
-body {{ font-family:'Poppins',sans-serif; background:#0a0e27; color:#fff; padding:40px 20px; min-height:100vh; }}
+body {{ font-family:'Poppins',sans-serif; background:{bg_color}; color:{text_color}; padding:40px 20px; min-height:100vh; }}
 .bg {{ position:fixed; inset:0; background:
-  radial-gradient(circle at 15% 50%, rgba(0,212,255,0.08) 0%, transparent 45%),
-  radial-gradient(circle at 85% 30%, rgba(167,139,250,0.07) 0%, transparent 50%);
-  z-index:0; pointer-events:none; }}
+  radial-gradient(circle at 15% 50%, {cyan} 10%, transparent 45%),
+  radial-gradient(circle at 85% 30%, {purple} 10%, transparent 50%);
+  opacity: 0.15; z-index:0; pointer-events:none; }}
 .container {{ position:relative; z-index:1; max-width:1200px; margin:0 auto; }}
-h1 {{ font-size:2.5rem; margin-bottom:8px; background:linear-gradient(135deg,#00d4ff,#a78bfa);
+h1 {{ font-size:2.5rem; margin-bottom:8px; background:linear-gradient(135deg, {cyan}, {purple});
   -webkit-background-clip:text; -webkit-text-fill-color:transparent; }}
-.sub {{ color:#b0b8d4; margin-bottom:40px; }}
+.sub {{ color:{text_dim}; margin-bottom:40px; }}
 .grid {{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px; }}
-.slide-card {{ background:rgba(0,212,255,0.05); border:1.5px solid rgba(0,212,255,0.2);
-  border-radius:14px; padding:20px; text-decoration:none; color:#fff; transition:all 0.3s;
+.slide-card {{ background:{card_bg}; border:1.5px solid {border_color};
+  border-radius:14px; padding:20px; text-decoration:none; color:{text_color}; transition:all 0.3s;
   display:flex; flex-direction:column; gap:8px; outline:none; }}
-.slide-card:hover, .slide-card:focus {{ transform:translateY(-6px); border-color:#00d4ff;
-  box-shadow:0 12px 40px rgba(0,212,255,0.2); }}
-.slide-card:focus {{ outline:2px solid #00d4ff; outline-offset:2px; }}
-.slide-num {{ font-size:0.75rem; color:#00d4ff; font-weight:700; letter-spacing:2px; }}
+.slide-card:hover, .slide-card:focus {{ transform:translateY(-6px); border-color:{cyan};
+  box-shadow:0 12px 40px {border_color}; }}
+.slide-card:focus {{ outline:2px solid {cyan}; outline-offset:2px; }}
+.slide-num {{ font-size:0.75rem; color:{cyan}; font-weight:700; letter-spacing:2px; }}
 .slide-title {{ font-size:1rem; font-weight:600; }}
-.slide-cat {{ font-size:0.65rem; color:#a78bfa; letter-spacing:1.5px; font-weight:700; }}
-.play-all {{ display:inline-block; background:linear-gradient(135deg,#00d4ff,#00ffff);
-  color:#0a0e27; padding:12px 28px; border-radius:100px; text-decoration:none;
+.slide-cat {{ font-size:0.65rem; color:{purple}; letter-spacing:1.5px; font-weight:700; }}
+.play-all {{ display:inline-block; background:linear-gradient(135deg, {cyan}, {purple});
+  color:#fff; padding:12px 28px; border-radius:100px; text-decoration:none;
   font-weight:700; margin-bottom:30px; transition:transform 0.2s; }}
 .play-all:hover {{ transform:scale(1.05); }}
-.play-all:focus {{ outline:2px solid #fff; outline-offset:4px; }}
+.play-all:focus {{ outline:2px solid {text_color}; outline-offset:4px; }}
 .stats {{ display:flex; gap:20px; margin-bottom:20px; flex-wrap:wrap; }}
-.stat {{ background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.3);
-  border-radius:10px; padding:10px 16px; font-size:0.85rem; }}
-.stat-val {{ color:#a78bfa; font-weight:700; }}
+.stat {{ background:transparent; border:1px solid {border_color};
+  border-radius:10px; padding:10px 16px; font-size:0.85rem; color:{text_dim}; }}
+.stat-val {{ color:{purple}; font-weight:700; }}
 @media (max-width:768px) {{
   h1 {{ font-size:1.8rem; }}
   .grid {{ grid-template-columns:1fr; }}
 }}
 /* Keyboard nav hint */
-.kbd-hint {{ color:#666; font-size:0.75rem; margin-top:20px; }}
+.kbd-hint {{ color:{text_dim}; font-size:0.75rem; margin-top:20px; }}
 </style>
 </head>
 <body>

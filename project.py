@@ -17,8 +17,11 @@ from config import OUTPUT_DIR as OUTPUT_ROOT
 
 logger = logging.getLogger("va_creator.project")
 
-# Process-global active project state
-_state: dict[str, str | None] = {"project": None}
+# Process-global active project and theme state
+_state: dict[str, str | None] = {
+    "project": None,
+    "theme": "Dark Cyber (Default)"
+}
 
 
 def slugify(name: str) -> str:
@@ -42,6 +45,14 @@ def set_active_project(name: str) -> str:
 def get_active_project() -> str | None:
     """Return the active project slug, or None if not set."""
     return _state["project"]
+
+
+def set_active_theme(theme_name: str):
+    _state["theme"] = theme_name
+
+
+def get_active_theme() -> str:
+    return _state.get("theme", "Dark Cyber (Default)")
 
 
 def get_project_dir() -> str:
