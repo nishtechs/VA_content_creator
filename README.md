@@ -27,6 +27,7 @@ Command to Run: `launch.bat` (Windows) or `./launch.sh` (Mac/Linux) or double-cl
 - 📦 **Smart Chunker** — Intelligently parses long scripts into well-paced visual section chunks.
 - ♻️ **Smart Resume Support** — Fast resume skips already completed slide/audio files, with incremental saves after each section.
 - 🔌 **MCP Server Integration** — Integrates `@remotion/mcp` (Remotion docs), `@genwave/svgmaker-mcp` (SVG generation), `@lottiefiles/creator-mcp` (Lottie animations), `stylelint-mcp` (CSS linting), `@prettier/mcp` (code formatting), `exa-mcp-server` (web search), and `@madhan-g-p/devdocs-mcp-server` (documentation lookup) into the agents to enhance research depth, slide quality, and code accuracy.
+- 🔄 **Self-Improving AI Loop** — Learns from manual script or design corrections in real-time. Automatically stores edits to `feedback.json` and feeds them back as category-specific few-shot examples (Avoid vs. Prefer) in future generation prompts.
 
 ---
 
@@ -182,8 +183,15 @@ Alternatively, use the included launcher scripts — they automatically create t
 | **Visual Designer** | Generates dark cyber-themed HTML slide page | `@remotion/mcp`, `@genwave/svgmaker-mcp`, `@lottiefiles/creator-mcp`, `stylelint-mcp`, `@prettier/mcp`, `exa-mcp-server`, `@madhan-g-p/devdocs-mcp-server` (MCP Servers via Stdio) |
 | **Audio Generator** | Calls Sarvam TTS for Hindi MP3 narration | `SarvamTTSTool` |
 | **HTML Publisher** | Injects audio source & slide navigation chains | `HTMLSaverTool` |
+### 🔄 Self-Improving Feedback Loop
+
+Whenever you make corrections to a section's script or HTML layout using the **✏️ Edit Section Content** panel:
+1. **Telemetry & Log:** The app compares the original generated section to your corrected section, saving any differences (HTML, CSS, script narration) inside `output/feedback.json`.
+2. **Context Retrieval:** On subsequent generation runs (or when clicking "Redo Video"), the system retrieves past corrections of the same category (e.g., `code`, `intro`, `concept`).
+3. **In-Prompt Learning:** These corrections are dynamically formatted into few-shot constraints ("Avoid vs. Prefer" patterns) and injected directly into the Visual Designer task description, ensuring the AI learns from your corrections and doesn't repeat past mistakes.
 
 ---
+
 
 ## ⚙️ Configuration
 
