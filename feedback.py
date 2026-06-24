@@ -36,7 +36,7 @@ def save_feedback(proj_dir: str, feedback_list: List[Dict]) -> None:
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")
 
-def log_feedback(proj_dir: str, section_id: str, original: Dict, corrected: Dict) -> bool:
+def log_feedback(proj_dir: str, section_id: str, original: Dict, corrected: Dict, critique: str = "") -> bool:
     """Compares original vs. corrected section data. Logs differences if any."""
     if not proj_dir:
         return False
@@ -53,14 +53,16 @@ def log_feedback(proj_dir: str, section_id: str, original: Dict, corrected: Dict
                 "after": corr_val
             }
             
-    if not diffs:
-        # No changes made
+    # Log feedback even if diffs are empty but a critique prompt was provided
+    if not diffs and not critique:
+        # No changes made and no critique
         return False
 
     feedback_entry = {
         "section_id": section_id,
         "category": corrected.get("category", "concept"),
         "title": corrected.get("title", ""),
+        "user_critique": critique,
         "differences": diffs,
         "timestamp": os.path.getmtime(proj_dir) if os.path.exists(proj_dir) else 0.0 # simple fallback timestamp
     }
@@ -104,6 +106,10 @@ def get_feedback_examples(proj_dir: str, category: str, limit: int = 2) -> str:
         title = entry.get("title", "Slide")
         block = f"--- EXAMPLE CORRECTION #{idx+1} ({title}) ---\n"
         
+        user_crit = entry.get("user_critique", "")
+        if user_crit:
+            block += f"User Critique/Request: \"{user_crit}\"\n"
+            
         diffs = entry.get("differences", {})
         
         # Audio text correction description

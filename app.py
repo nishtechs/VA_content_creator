@@ -329,6 +329,7 @@ def process_single_section(section: dict, next_section_id: str) -> tuple[str, bo
             make_visual_designer_agent,
             lambda agent: make_visual_task(agent, section),
         )
+        section.pop("user_critique", None)
         content = parse_content(str(task.output.raw))
         if not content or ("slide_html" not in content and "visual_html" not in content):
             raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
@@ -429,6 +430,7 @@ def regenerate_video_only(section_idx: int) -> tuple[bool, str]:
             make_visual_designer_agent,
             lambda agent: make_visual_task(agent, section),
         )
+        section.pop("user_critique", None)
         content = parse_content(str(task.output.raw))
         if not content or ("slide_html" not in content and "visual_html" not in content):
             raise ValueError("LLM Visual Designer returned empty or invalid slide content.")
@@ -926,6 +928,8 @@ if st.session_state.sections:
                 edit_code = st.text_area("Code (optional)", value=section.get("code", ""), key=f"edit_code_{sid}", height=100)
                 edit_code_lang = st.text_input("Code Language", value=section.get("code_language", ""), key=f"edit_code_lang_{sid}")
                 
+                edit_critique = st.text_input("🤖 AI Correction Prompt / Instructions (Optional)", placeholder="e.g. Put the cards side-by-side; make the Hindi audio narration more detailed", key=f"edit_critique_{sid}")
+
                 # Advanced direct HTML/CSS edit (if slide has already been generated)
                 edit_html = ""
                 edit_css = ""
@@ -955,6 +959,7 @@ if st.session_state.sections:
                         section["visual_brief"] = edit_visual
                         section["code"] = edit_code
                         section["code_language"] = edit_code_lang
+                        section["user_critique"] = edit_critique
                         
                         # Remove generated slide elements so LLM regenerates
                         if "slide_html" in section:
@@ -964,8 +969,8 @@ if st.session_state.sections:
                         if "custom_css" in section:
                             del section["custom_css"]
                         
-                        # Log feedback (e.g. text/brief updates)
-                        log_feedback(get_project_dir(), sid, original_section, section)
+                        # Log feedback (e.g. text/brief updates) with user critique prompt
+                        log_feedback(get_project_dir(), sid, original_section, section, edit_critique)
                         
                         st.session_state.sections[idx] = section
                         save_sections_json(st.session_state.sections)
@@ -1000,8 +1005,8 @@ if st.session_state.sections:
                             section["visual_html"] = edit_html
                             section["custom_css"] = edit_css
                         
-                        # Log feedback (e.g. layout/style fixes)
-                        log_feedback(get_project_dir(), sid, original_section, section)
+                        # Log feedback (e.g. layout/style fixes) with user critique prompt
+                        log_feedback(get_project_dir(), sid, original_section, section, edit_critique)
                         
                         st.session_state.sections[idx] = section
                         save_sections_json(st.session_state.sections)

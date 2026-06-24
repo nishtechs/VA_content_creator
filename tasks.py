@@ -172,6 +172,15 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"═══════════════════════════════════════════\n\n"
         )
 
+    user_critique_note = ""
+    if section_data.get("user_critique"):
+        user_critique_note = (
+            f"\n═══════════════════════════════════════════\n"
+            f"CRITICAL USER REQUEST FOR THIS RUN (MUST COMPLY):\n"
+            f"\"{section_data['user_critique']}\"\n"
+            f"═══════════════════════════════════════════\n\n"
+        )
+
     return Task(
         description=(
             f"Produce PREMIUM structured content for one tutorial slide as a JSON object.\n\n"
@@ -181,6 +190,7 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"VISUAL: {section_data.get('visual') or section_data.get('visual_brief') or ''}\n"
             f"AUDIO TEXT (narrator will say this — your visual MUST match): {section_data.get('audio_text', 'N/A')}\n"
             f"{code_note}\n"
+            f"{user_critique_note}"
             f"{feedback_note}"
             f"═══════════════════════════════════════════\n"
             f"YOUR GOAL: You are responsible for the FULL HTML layout of the slide.\n"
