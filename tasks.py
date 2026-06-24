@@ -163,6 +163,15 @@ def make_visual_task(agent, section_data: dict) -> Task:
 
     theme_name = section_data.get("theme", "Dark Cyber (Default)")
 
+    feedback_note = ""
+    if section_data.get("feedback_examples"):
+        feedback_note = (
+            f"\n═══════════════════════════════════════════\n"
+            f"LEARNINGS FROM PAST USER CORRECTIONS (IMPORTANT: Avoid these mistakes & follow preferred styles):\n"
+            f"{section_data['feedback_examples']}\n"
+            f"═══════════════════════════════════════════\n\n"
+        )
+
     return Task(
         description=(
             f"Produce PREMIUM structured content for one tutorial slide as a JSON object.\n\n"
@@ -172,6 +181,7 @@ def make_visual_task(agent, section_data: dict) -> Task:
             f"VISUAL: {section_data.get('visual') or section_data.get('visual_brief') or ''}\n"
             f"AUDIO TEXT (narrator will say this — your visual MUST match): {section_data.get('audio_text', 'N/A')}\n"
             f"{code_note}\n"
+            f"{feedback_note}"
             f"═══════════════════════════════════════════\n"
             f"YOUR GOAL: You are responsible for the FULL HTML layout of the slide.\n"
             f"Create VISUALLY STUNNING, creative layouts using CSS Grid or Flexbox.\n"

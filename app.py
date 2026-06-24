@@ -50,6 +50,7 @@ from utils import (
     has_devanagari,
     devanagari_ratio,
 )
+from feedback import log_feedback, get_feedback_examples
 
 # ─── Page Config ─────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -311,6 +312,10 @@ def process_single_section(section: dict, next_section_id: str) -> tuple[str, bo
     if not section.get("visual_brief") and section.get("visual"):
         section["visual_brief"] = section["visual"]
 
+    # Fetch feedback examples for self-improvement
+    proj_dir = get_project_dir()
+    section["feedback_examples"] = get_feedback_examples(proj_dir, section.get("category", "concept"))
+
     video_ok = False
     audio_ok = False
     errors: list[str] = []
@@ -413,6 +418,10 @@ def regenerate_video_only(section_idx: int) -> tuple[bool, str]:
     if "custom_css" in section:
         del section["custom_css"]
     save_sections_json(sections)
+
+    # Fetch feedback examples for self-improvement
+    proj_dir = get_project_dir()
+    section["feedback_examples"] = get_feedback_examples(proj_dir, section.get("category", "concept"))
 
     try:
         # Generate slide content via LLM, then render deterministically
@@ -934,6 +943,9 @@ if st.session_state.sections:
                 
                 with btn_save_col1:
                     if st.button("💾 Save & Regenerate (via AI)", key=f"save_ai_{sid}", use_container_width=True, disabled=st.session_state.pipeline_running):
+                        import copy
+                        original_section = copy.deepcopy(section)
+                        
                         # 1. Update sections data
                         section["theme"] = st.session_state.get("slide_theme", "Dark Cyber (Default)")
                         section["title"] = edit_title
@@ -952,6 +964,9 @@ if st.session_state.sections:
                         if "custom_css" in section:
                             del section["custom_css"]
                         
+                        # Log feedback (e.g. text/brief updates)
+                        log_feedback(get_project_dir(), sid, original_section, section)
+                        
                         st.session_state.sections[idx] = section
                         save_sections_json(st.session_state.sections)
                         
@@ -966,6 +981,9 @@ if st.session_state.sections:
                 
                 with btn_save_col2:
                     if st.button("⚡ Save & Re-render (Instant)", key=f"save_instant_{sid}", use_container_width=True, disabled=st.session_state.pipeline_running):
+                        import copy
+                        original_section = copy.deepcopy(section)
+                        
                         # 1. Update sections data
                         section["theme"] = st.session_state.get("slide_theme", "Dark Cyber (Default)")
                         section["title"] = edit_title
@@ -981,6 +999,9 @@ if st.session_state.sections:
                             section["slide_html"] = edit_html
                             section["visual_html"] = edit_html
                             section["custom_css"] = edit_css
+                        
+                        # Log feedback (e.g. layout/style fixes)
+                        log_feedback(get_project_dir(), sid, original_section, section)
                         
                         st.session_state.sections[idx] = section
                         save_sections_json(st.session_state.sections)
