@@ -1,6 +1,6 @@
 # 🎬 VA Creator — AI-Powered Tutorial Video Generator  `v1.3.0`
 
-Command to Run: `venv\Scripts\streamlit.exe run app.py`
+Command to Run: `launch.bat` (Windows) or `./launch.sh` (Mac/Linux) or double-click launcher files directly!
 
 > Convert long-form Markdown tutorial scripts into a chain of beautiful, animated HTML slides with synchronized Hindi (Hinglish) audio narration — fully automated using **CrewAI multi-agents**, **NVIDIA LLMs**, and **Sarvam AI TTS**.
 
@@ -121,6 +121,18 @@ venv\Scripts\streamlit.exe run app.py
 ```
 
 Open `http://localhost:8501/` in your browser to manage, preview, edit, and regenerate your slides.
+
+#### 🚀 One-Click Launchers
+
+Alternatively, use the included launcher scripts — they automatically create the virtual environment, install all dependencies, and start the dashboard:
+
+| OS | File | How to Run |
+| :--- | :--- | :--- |
+| **Windows** | `launch.bat` | Double-click in Explorer, or run `.\launch.bat` in terminal |
+| **Linux** | `launch.sh` | Run `chmod +x launch.sh && ./launch.sh` |
+| **macOS** | `launch.command` | Double-click in Finder, or run `chmod +x launch.command && ./launch.command` |
+
+> 💡 **First run** may take a few minutes while dependencies are installed. Subsequent launches will be near-instant.
 
 ---
 

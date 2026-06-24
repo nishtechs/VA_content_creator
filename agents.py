@@ -14,13 +14,17 @@ from crewai.mcp import MCPServerStdio
 from crewai_tools import SerperDevTool
 from config import nvidia_llm, nvidia_llm_creative
 
+# Absolute path to node_modules to run Node entry points directly
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+NODE_MODULES = os.path.join(BASE_DIR, "node_modules")
+
 
 def make_research_scriptwriter_agent() -> Agent:
     """Create a fresh Technical Researcher & Scriptwriter agent."""
     exa_mcp = MCPServerStdio(
-        command="npx",
-        args=["exa-mcp-server"],
-        env={"EXA_API_KEY": os.getenv("EXA_API_KEY", "")}
+        command="node",
+        args=[os.path.join(NODE_MODULES, "exa-mcp-server", "smithery", "stdio", "index.cjs")],
+        env={"EXA_API_KEY": os.getenv("EXA_API_KEY") or "dummy-exa-key"}
     )
     return Agent(
         role="Technical Researcher & Scriptwriter",
@@ -66,34 +70,34 @@ def make_chunk_structurer_agent() -> Agent:
 def make_visual_designer_agent() -> Agent:
     """Create a fresh HTML Visual Designer agent."""
     remotion_mcp = MCPServerStdio(
-        command="npx",
-        args=["@remotion/mcp"]
+        command="node",
+        args=[os.path.join(os.path.dirname(__file__), "mcp_wrapper.js"), os.path.join(NODE_MODULES, "@remotion", "mcp", "dist", "esm", "index.mjs")]
     )
     svg_mcp = MCPServerStdio(
-        command="npx",
-        args=["@genwave/svgmaker-mcp"],
-        env={"SVGMAKER_API_KEY": os.getenv("SVGMAKER_API_KEY", "")}
+        command="node",
+        args=[os.path.join(os.path.dirname(__file__), "mcp_wrapper.js"), os.path.join(NODE_MODULES, "@genwave", "svgmaker-mcp", "build", "index.js")],
+        env={"SVGMAKER_API_KEY": os.getenv("SVGMAKER_API_KEY") or "dummy-svgmaker-key"}
     )
     lottie_mcp = MCPServerStdio(
-        command="npx",
-        args=["@lottiefiles/creator-mcp"]
+        command="node",
+        args=[os.path.join(os.path.dirname(__file__), "mcp_wrapper.js"), os.path.join(NODE_MODULES, "@lottiefiles", "creator-mcp", "dist", "index.mjs")]
     )
     stylelint_mcp = MCPServerStdio(
-        command="npx",
-        args=["stylelint-mcp"]
+        command="node",
+        args=[os.path.join(os.path.dirname(__file__), "mcp_wrapper.js"), os.path.join(NODE_MODULES, "stylelint-mcp", "dist", "mcp-cli.js")]
     )
     prettier_mcp = MCPServerStdio(
-        command="npx",
-        args=["@prettier/mcp"]
+        command="node",
+        args=[os.path.join(os.path.dirname(__file__), "mcp_wrapper.js"), os.path.join(NODE_MODULES, "@prettier", "mcp", "cli.mjs")]
     )
     exa_mcp = MCPServerStdio(
-        command="npx",
-        args=["exa-mcp-server"],
-        env={"EXA_API_KEY": os.getenv("EXA_API_KEY", "")}
+        command="node",
+        args=[os.path.join(os.path.dirname(__file__), "mcp_wrapper.js"), os.path.join(NODE_MODULES, "exa-mcp-server", "smithery", "stdio", "index.cjs")],
+        env={"EXA_API_KEY": os.getenv("EXA_API_KEY") or "dummy-exa-key"}
     )
     devdocs_mcp = MCPServerStdio(
-        command="npx",
-        args=["@madhan-g-p/devdocs-mcp-server"]
+        command="node",
+        args=[os.path.join(os.path.dirname(__file__), "mcp_wrapper.js"), os.path.join(NODE_MODULES, "@madhan-g-p", "devdocs-mcp-server", "dist", "main.js")]
     )
     return Agent(
         role="Premium HTML Visual Designer",
@@ -105,8 +109,8 @@ def make_visual_designer_agent() -> Agent:
         ),
         backstory=(
             "You are a world-class frontend designer who has designed keynote presentations for "
-            "Apple, Google, and top tech conferences. You specialize in dark-themed educational "
-            "visual components with glassmorphism, neon gradients, and smooth CSS animations. "
+            "Apple, Google, and top tech conferences. You specialize in theme-aware educational "
+            "visual components with glassmorphism, dynamic gradients, and smooth CSS animations. "
             "You use pre-built component classes (glass-box, flow-step, command-box) to create "
             "visually rich, structured layouts. Every slide you produce looks premium and polished — "
             "never a boring wall of text. Every word of visible text is in English."
